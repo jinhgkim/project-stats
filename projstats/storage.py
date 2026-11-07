@@ -95,6 +95,32 @@ CREATE TABLE IF NOT EXISTS releases (
     released_at INTEGER NOT NULL
 );
 
+-- Themes: lasting efforts or functional areas, assigned to documents by the
+-- LLM. Ids are stable; names and aliases can change (see themes.py).
+CREATE TABLE IF NOT EXISTS themes (
+    id          TEXT PRIMARY KEY,
+    name        TEXT NOT NULL UNIQUE,
+    description TEXT NOT NULL DEFAULT '',
+    aliases     TEXT NOT NULL DEFAULT '[]',
+    created_at  REAL NOT NULL,
+    merged_into TEXT REFERENCES themes(id)
+);
+
+-- Which documents have which themes. doc_ref is documents.Document.ref:
+-- "pr#4838", "issue#5505", or a commit's short sha.
+CREATE TABLE IF NOT EXISTS doc_themes (
+    doc_ref  TEXT NOT NULL,
+    theme_id TEXT NOT NULL REFERENCES themes(id),
+    PRIMARY KEY (doc_ref, theme_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_doc_themes_theme ON doc_themes (theme_id);
+
+-- Comparison keys (themes.theme_key) of themes the user deleted.
+CREATE TABLE IF NOT EXISTS blocked_themes (
+    key TEXT PRIMARY KEY
+);
+
 -- Model replies keyed by a hash of (model, task, prompt, schema); see llm.py.
 CREATE TABLE IF NOT EXISTS llm_cache (
     key        TEXT PRIMARY KEY,

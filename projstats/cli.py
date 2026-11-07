@@ -8,12 +8,14 @@ from datetime import UTC, datetime
 
 from projstats import (
     config,
+    documents,
     github,
     gitlog,
     identity,
     releases,
     retention,
     storage,
+    themes,
 )
 
 
@@ -126,6 +128,40 @@ def _pct(n: int | None, d: int) -> str:
     return "n/a" if n is None else f"{n} ({100 * n / d:.0f}%)"
 
 
+def cmd_themes(args) -> int:
+    cfg = config.load(args.config)
+    conn = storage.connect(cfg.db_path)
+    if args.action == "list":
+        dates = {d.ref: d.ts for d in documents.load_documents(conn)}
+        rows = themes.summary(conn, dates)
+        if not rows:
+            print("themes: none yet; run `projstats tag` first")
+            return 0
+        print(f"themes: {len(rows)}")
+        print(f"  {'docs':>5}  {'first':10}  {'last':10}  name")
+        for r in rows[: args.top]:
+            first = _day(r.first) if r.first else "-"
+            last = _day(r.last) if r.last else "-"
+            also = f"  (also: {', '.join(r.aliases)})" if r.aliases else ""
+            print(f"  {r.docs:5}  {first:10}  {last:10}  {r.name}{also}")
+        return 0
+    try:
+        if args.action == "rename":
+            themes.rename(conn, args.name, args.new_name)
+            done = f"renamed '{args.name}' to '{args.new_name}'"
+        elif args.action == "merge":
+            themes.merge(conn, args.name, args.into)
+            done = f"merged '{args.name}' into '{args.into}'"
+        else:
+            themes.delete(conn, args.name)
+            done = f"deleted '{args.name}'; it won't be created again"
+    except ValueError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
+    print(done)
+    return 0
+
+
 def cmd_summary(args) -> int:
     """Temporary text report, to check the retention math until the page exists."""
     cfg = config.load(args.config)
@@ -231,6 +267,21 @@ def main(argv=None) -> int:
     p = sub.add_parser("people", help="show how identities were grouped into people")
     p.add_argument("config", help="project config, e.g. projects/oiio.toml")
     p.set_defaults(func=cmd_people)
+
+    p = sub.add_parser("themes", help="list, rename, merge, or delete themes")
+    p.add_argument("config", help="project config, e.g. projects/oiio.toml")
+    p.set_defaults(func=cmd_themes)
+    actions = p.add_subparsers(dest="action", required=True)
+    a = actions.add_parser("list", help="themes with document counts, most used first")
+    a.add_argument("--top", type=int, default=100, help="rows to show (default 100)")
+    a = actions.add_parser("rename", help="rename; the old name becomes an alias")
+    a.add_argument("name")
+    a.add_argument("new_name")
+    a = actions.add_parser("merge", help="fold one theme into another")
+    a.add_argument("name")
+    a.add_argument("into")
+    a = actions.add_parser("delete", help="remove a theme and block it")
+    a.add_argument("name")
 
     p = sub.add_parser("summary", help="temporary text report of retention numbers")
     p.add_argument("config", help="project config, e.g. projects/oiio.toml")
