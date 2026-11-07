@@ -288,7 +288,7 @@ def cmd_page(args) -> int:
     cfg = config.load(args.config)
     conn = storage.connect(cfg.db_path)
     data = export.build(conn, cfg)
-    title = f"{cfg.repo.github.split('/')[-1]} contributors"
+    title = f"{cfg.repo.github.split('/')[-1]} project analytics"
     out = page.write(data, title, args.out or Path(cfg.data_dir) / f"{cfg.slug}.html")
     size = out.stat().st_size / 1024
     print(
