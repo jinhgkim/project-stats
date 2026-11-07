@@ -98,8 +98,8 @@ log `gh` in with a read-only token.
 ## Usage
 
 Themes are optional. For analytics only, set `enabled = false` under
-`[themes]` in the config: the Themes tab and the theme filter are left out of
-the page, and `tag` stops without calling Ollama.
+`[themes]` in the config: the Themes tab is left out of the page, the theme
+filter shows "No data available", and `tag` stops without calling Ollama.
 
 ```
 python3 -m projstats fetch  projects/oiio.toml   # clone/update + GitHub data

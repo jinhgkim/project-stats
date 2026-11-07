@@ -308,7 +308,9 @@ def cmd_page(args) -> int:
     conn = storage.connect(cfg.db_path)
     data = export.build(conn, cfg)
     title = f"{cfg.repo.github.split('/')[-1]} Project Analytics"
-    out = page.write(data, title, args.out or Path(cfg.data_dir) / f"{cfg.slug}.html")
+    out = Path(args.out or Path(cfg.data_dir) / f"{cfg.slug}.html")
+    data["siblings"] = page.siblings(args.config, cfg, out)
+    out = page.write(data, title, out)
     size = out.stat().st_size / 1024
     print(
         f"page: {out} ({size:.0f} KB); add #check to the address to compare with Python"

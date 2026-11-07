@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from projstats import page
+from projstats import config, page
 
 
 def embedded_data(text: str) -> dict:
@@ -48,6 +48,47 @@ class PageTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             out = page.write({"x": 1}, "t", Path(tmp) / "sub" / "p.html")
             self.assertEqual(embedded_data(out.read_text(encoding="utf-8")), {"x": 1})
+
+    def write_projects(self, tmp: Path, names: list[str]) -> Path:
+        data = tmp / "data"
+        for name in names:
+            (tmp / f"{name}.toml").write_text(
+                f'data_dir = "{data.as_posix()}"\n[repo]\ngithub = "org/{name}"\nlabel = "Org {name}"\n'
+            )
+        return tmp
+
+    def test_siblings_list_built_pages_and_this_project(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = self.write_projects(Path(tmp), ["a", "b", "c"])
+            (tmp / "data").mkdir()
+            (tmp / "data" / "org__b.html").write_text("")
+            cfg = config.load(tmp / "a.toml")
+            out = tmp / "data" / "org__a.html"
+            found = page.siblings(tmp / "a.toml", cfg, out)
+            self.assertEqual(
+                found,
+                [
+                    {"name": "a", "href": "org__a.html", "current": True},
+                    {"name": "b", "href": "org__b.html", "current": False},
+                ],
+            )
+
+    def test_siblings_links_are_relative_to_the_page(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = self.write_projects(Path(tmp), ["a", "b"])
+            (tmp / "data").mkdir()
+            (tmp / "data" / "org__b.html").write_text("")
+            cfg = config.load(tmp / "a.toml")
+            found = page.siblings(tmp / "a.toml", cfg, tmp / "elsewhere" / "a.html")
+            self.assertEqual(found[1]["href"], "../data/org__b.html")
+
+    def test_siblings_skips_configs_that_do_not_load(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = self.write_projects(Path(tmp), ["a"])
+            (tmp / "broken.toml").write_text("[repo]\ngithub = \"nope\"\n")
+            cfg = config.load(tmp / "a.toml")
+            found = page.siblings(tmp / "a.toml", cfg, tmp / "data" / "org__a.html")
+            self.assertEqual([f["name"] for f in found], ["a"])
 
 
 if __name__ == "__main__":

@@ -7,7 +7,10 @@ view means adding one file; this module picks it up.
 
 import html
 import json
+import os
 from pathlib import Path
+
+from . import config
 
 PAGE_DIR = Path(__file__).with_name("page")
 
@@ -21,6 +24,26 @@ def js_files() -> list[Path]:
         *sorted((PAGE_DIR / "views").glob("*.js")),
         PAGE_DIR / "check.js",
     ]
+
+
+def siblings(config_path: str | Path, cfg: config.Config, out: Path) -> list[dict]:
+    """The projects the page can switch to: every config next to this one whose
+    page already exists, plus this project. Links are relative to `out`, so the
+    pages must stay together. A config that doesn't load is skipped."""
+    found = []
+    for path in sorted(Path(config_path).parent.glob("*.toml")):
+        try:
+            other = config.load(path)
+        except (ValueError, OSError):
+            continue
+        target = Path(other.data_dir) / f"{other.slug}.html"
+        current = other.slug == cfg.slug
+        if not current and not target.exists():
+            continue
+        href = Path(os.path.relpath(target, out.parent)).as_posix()
+        name = other.repo.github.split("/")[-1]
+        found.append({"name": name, "href": href, "current": current})
+    return found
 
 
 def _script(path: Path) -> str:

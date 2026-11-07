@@ -23,14 +23,19 @@ const PS = (() => {
     return out;
   }
 
-  function writeHash() {
+  // The hash for a state, without the keys in `skip`.
+  function hashOf(s, skip = []) {
     const parts = [];
-    for (const [key, value] of Object.entries(state)) {
-      if (value === undefined || value === null || value === "" || value === false) continue;
+    for (const [key, value] of Object.entries(s)) {
+      if (skip.includes(key) || value === undefined || value === null || value === "" || value === false) continue;
       parts.push(value === true ? encodeURIComponent(key)
         : `${encodeURIComponent(key)}=${encodeURIComponent(value)}`);
     }
-    history.replaceState(null, "", parts.length ? "#" + parts.join("&") : location.pathname);
+    return parts.length ? "#" + parts.join("&") : "";
+  }
+
+  function writeHash() {
+    history.replaceState(null, "", hashOf(state) || location.pathname);
   }
 
   function set(changes) {
@@ -305,6 +310,37 @@ const PS = (() => {
 
   function hideTooltip() { tooltip.style.display = "none"; }
 
+  // Hover hints. The browser's own `title` tooltip waits about a second and
+  // often goes unseen, so the first hover moves the text to data-tip (and
+  // aria-description) and shows it in the page tooltip after a short pause.
+  function setupHints() {
+    let current = null;
+    let timer = null;
+    const hide = () => {
+      clearTimeout(timer);
+      current = null;
+      hideTooltip();
+    };
+    document.addEventListener("mouseover", event => {
+      const target = event.target.closest("[title], [data-tip]");
+      if (!target || target === current) return;
+      hide();
+      const text = target.dataset.tip || target.getAttribute("title");
+      if (!text) return;
+      if (target.hasAttribute("title")) {
+        target.dataset.tip = text;
+        target.setAttribute("aria-description", text);
+        target.removeAttribute("title");
+      }
+      current = target;
+      timer = setTimeout(() => showTooltip(event, text, []), 120);
+    });
+    document.addEventListener("mouseout", event => {
+      if (current && !current.contains(event.relatedTarget)) hide();
+    });
+    document.addEventListener("mousedown", hide);
+  }
+
   // Width in px of text drawn at `size` px in the page font, for fitting labels.
   const measure = document.createElement("canvas").getContext("2d");
   function textWidth(text, size) {
@@ -437,6 +473,38 @@ const PS = (() => {
       `stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${THEME_ICONS[theme]}</svg>`;
   }
 
+  // Other projects' pages sit next to this one (data.siblings, set when the
+  // page is built). The title ends with the dropdown: Project Analytics: [name].
+  // Switching keeps the view except what belongs to one project.
+  const PROJECT_ONLY = ["theme", "without"];
+  function setupProjectSwitch() {
+    const select = document.getElementById("project");
+    const projects = data.siblings || [];
+    if (projects.length < 2) return;
+    select.append(...projects.map((s, i) => el("option", {value: i}, s.name)));
+    const current = projects.findIndex(s => s.current);
+    select.value = current;
+    const title = document.getElementById("title");
+    const pick = el("span", {class: "project-pick"});
+    select.replaceWith(pick);
+    pick.append(select);
+    if (title.textContent.startsWith(projects[current].name)) {
+      // "Project Analytics: [name]", so the fixed text never moves between projects.
+      title.replaceChildren(`${title.textContent.slice(projects[current].name.length).trim()}:`, pick);
+      // Fit the select to the open project's name, not the longest one:
+      // text, left padding, the arrow's room on the right, and the border.
+      const ctx = document.createElement("canvas").getContext("2d");
+      ctx.font = `600 20px ${getComputedStyle(document.body).fontFamily}`;
+      select.style.width = `${Math.ceil(ctx.measureText(projects[current].name).width) + 44}px`;
+    }
+    select.onchange = () => {
+      const target = projects[select.value];
+      if (target.current) return;
+      location.href = target.href + hashOf(state, PROJECT_ONLY);
+    };
+    select.hidden = false;
+  }
+
   function start() {
     state = readHash();
     const p = data.project;
@@ -455,6 +523,8 @@ const PS = (() => {
       renderAll();
     };
     applyTheme();
+    setupHints();
+    setupProjectSwitch();
 
     // Tabs: a tab list at the bottom of the pinned bar, right above the
     // panels. Arrow keys, Home, and End move between tabs and open them.
@@ -502,8 +572,9 @@ const PS = (() => {
     }
     if (more.childElementCount) {
       const toggle = el("button", {
-        type: "button", id: "more-toggle", "aria-expanded": "false", "aria-controls": "filter-more",
+        type: "button", id: "more-toggle", "aria-expanded": "true", "aria-controls": "filter-more",
       }, "More filters", el("span", {class: "badge", id: "more-badge", hidden: true}), el("span", {class: "chev", "aria-hidden": "true"}));
+      more.hidden = false;
       toggle.onclick = () => {
         const opening = more.hidden;
         more.hidden = !opening;
