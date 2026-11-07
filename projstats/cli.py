@@ -7,10 +7,12 @@ import sys
 import time
 from collections import Counter
 from datetime import UTC, datetime
+from pathlib import Path
 
 from projstats import (
     config,
     documents,
+    export,
     github,
     gitlog,
     identity,
@@ -91,12 +93,7 @@ def _print_github(conn, stats: github.FetchStats, full: bool) -> None:
 
 
 def _load_people(conn, cfg: config.Config) -> identity.People:
-    return identity.group_people(
-        identity.load_identities(conn),
-        cfg.people.bots,
-        links=identity.load_links(conn),
-        github_logins=identity.load_github_logins(conn),
-    )
+    return identity.load_people(conn, cfg.people.bots)
 
 
 def cmd_people(args) -> int:
@@ -339,6 +336,26 @@ def _sample_run(conn, provider, docs, texts, settings, n: int) -> int:
     return 0
 
 
+def cmd_export(args) -> int:
+    cfg = config.load(args.config)
+    conn = storage.connect(cfg.db_path)
+    data = export.build(conn, cfg)
+    out = args.out or Path(cfg.data_dir) / f"{cfg.slug}.json"
+    sizes = export.write(data, out)
+    a = data["activity"]
+    missing = sum(1 for d in a["doc"] if d < 0)
+    print(
+        f"people {len(data['people']['name'])}, documents {len(data['docs']['ref'])}, "
+        f"activity {len(a['day'])} ({missing} without a document), "
+        f"themes {len(data['themes']['name'])}, tagged documents "
+        f"{len(data['themes']['tagged'])}, releases {len(data['releases']['tag'])}"
+    )
+    for part, size in sizes.items():
+        print(f"  {part:10} {size / 1024:8.1f} KB")
+    print(f"-> {out}")
+    return 0
+
+
 def cmd_summary(args) -> int:
     """Temporary text report, to check the retention math until the page exists."""
     cfg = config.load(args.config)
@@ -481,6 +498,11 @@ def main(argv=None) -> int:
         help="dry run: tag N documents spread across release cycles, save nothing",
     )
     p.set_defaults(func=cmd_tag)
+
+    p = sub.add_parser("export", help="write the page's data as JSON")
+    p.add_argument("config", help="project config, e.g. projects/oiio.toml")
+    p.add_argument("--out", help="output file (default: data/<owner>__<repo>.json)")
+    p.set_defaults(func=cmd_export)
 
     p = sub.add_parser("summary", help="temporary text report of retention numbers")
     p.add_argument("config", help="project config, e.g. projects/oiio.toml")

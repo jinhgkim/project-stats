@@ -226,3 +226,13 @@ def group_people(
         by_email={e: p for p in people for e in p.emails},
         by_login={login: p for p in people for login in p.logins},
     )
+
+
+def load_people(conn: sqlite3.Connection, bots: Iterable[str] = ()) -> People:
+    """Everyone with commits or GitHub activity, grouped and without bots."""
+    return group_people(
+        load_identities(conn),
+        bots,
+        links=load_links(conn),
+        github_logins=load_github_logins(conn),
+    )
