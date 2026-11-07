@@ -1,0 +1,176 @@
+// View: each theme's share of activity per release cycle or year, as a
+// heatmap, with its trend. Only periods that are mostly tagged get columns.
+
+// The theme views' own period ("tp" in the URL): release cycles or years.
+// Theme counts per month or quarter are too small to compare, so these views
+// don't follow Group by.
+PS.themePeriod = state => {
+  const hasReleases = PS.data.releases.day.length > 0;
+  return state.tp === "year" || !hasReleases ? "year" : "release";
+};
+
+PS.trendText = trend => {
+  if (!trend) return "";
+  return {rising: "↑ rising", fading: "↓ fading", steady: "→ steady", "too few": "· too few"}[trend.label];
+};
+
+PS.registerView({
+  id: "themes-over-time",
+  title: "Themes over time",
+  order: 50,
+  render(figure, {data, rowsExcept, state, set}) {
+    if (!data.themes.name.length) {
+      figure.plot.replaceChildren(PS.el("p", {class: "empty"}, "No themes yet; run projstats tag."));
+      return;
+    }
+    const kind = PS.themePeriod(state);
+    const scheme = PS.periodScheme(kind);
+    // Every theme is shown even when the theme filter picks one; that one is marked.
+    const rows = rowsExcept("theme");
+    const r = PS.metrics.themeTrends(rows, data, scheme, {skipInProgress: kind === "release"});
+    const selected = PS.selectedTheme(state);
+    const cols = r.periods.filter(p => p.covered && p.activity > 0);
+    const untagged = r.periods.filter(p => !p.covered && p.activity > 0).length;
+
+    // Period switch, built once.
+    if (!figure.periodButtons) {
+      const options = [["release", "Release cycle"], ["year", "Year"]]
+        .filter(([id]) => id === "year" || data.releases.day.length);
+      figure.periodButtons = options.map(([id, name]) => {
+        const button = PS.el("button", {type: "button", "data-label": name}, name);
+        button.onclick = () => set({tp: id === "release" ? undefined : id});
+        button.dataset.period = id;
+        return button;
+      });
+      figure.controls.append(PS.el("span", {class: "label"}, "Periods"), ...figure.periodButtons);
+    }
+    figure.periodButtons.forEach(b => b.setAttribute("aria-pressed", String(b.dataset.period === kind)));
+
+    const name = t => data.themes.name[t];
+    const shareOf = (p, t) => {
+      const s = p.themes.find(x => x.theme === t);
+      return s ? s : null;
+    };
+    // Rising first, then fading, steady, too few; within each, the latest share.
+    const last = cols[cols.length - 1];
+    const latest = t => (last && shareOf(last, t) ? shareOf(last, t).share : 0);
+    const themes = r.present.filter(t => cols.some(p => shareOf(p, t)))
+      .sort((a, b) => {
+        const ta = r.trends.get(a), tb = r.trends.get(b);
+        const oa = ta ? PS.metrics.TREND_ORDER[ta.label] : 0, ob = tb ? PS.metrics.TREND_ORDER[tb.label] : 0;
+        return oa - ob || (tb ? tb.recentShare : latest(b)) - (ta ? ta.recentShare : latest(a)) ||
+          name(a).localeCompare(name(b));
+      });
+
+    const compared = r.recent === null ? "" : r.earlier.length
+      ? ` Trend: ${r.periods[r.recent].label} against ${r.earlier.length === 1 ? r.periods[r.earlier[0]].label
+        : `${r.earlier.length} earlier ${scheme.name}s`} (rising at 1.5× the share or more, fading at 0.67× or less, ` +
+        `needs 5+ documents).` : "";
+    figure.subtitle.textContent =
+      `Each theme's share of all activity on tagged documents, per ${scheme.name}. A PR's reviews, ` +
+      `comments, and linked commits count toward its themes, so a document with two themes counts for both.` +
+      compared +
+      (untagged ? ` ${untagged} earlier ${scheme.name}${untagged === 1 ? " is" : "s are"} not tagged yet and left out.` : "");
+
+    const BINS = [0.01, 0.03, 0.06, 0.10, 0.15];
+    const binOf = v => BINS.filter(t => v >= t).length;
+    PS.fillLegend(figure, ["under 1%", "1–3%", "3–6%", "6–10%", "10–15%", "15%+"]
+      .map((n, i) => ({name: n, color: `var(--seq-${i + 1})`, shape: "rect"})));
+    const pct = v => (v === null || v === undefined ? "–" : `${(v * 100).toFixed(1)}%`);
+    PS.fillTable(figure, [
+      {name: "Theme", value: t => name(t)},
+      {name: "Trend", value: t => PS.trendText(r.trends.get(t)) || "–"},
+      ...cols.map(p => ({
+        name: p.label + (p.partial ? " (so far)" : ""),
+        value: t => (shareOf(p, t) ? pct(shareOf(p, t).share) : "–"),
+      })),
+    ], themes);
+
+    if (!cols.length) {
+      const days = data.themes.tagged.map(d => data.docs.day[d]);
+      figure.plot.replaceChildren(PS.el("p", {class: "empty"},
+        `No tagged ${scheme.name}s match the filters.` +
+        (days.length ? ` Theme tags cover documents from ${PS.dayToText(Math.min(...days))}.` : "")));
+      return;
+    }
+
+    const width = Math.max(320, figure.plot.clientWidth || figure.root.clientWidth - 32);
+    const trendW = 78;
+    const maxNameW = Math.min(220, Math.round(width * 0.4) - trendW);
+    const label = t => PS.fitText(name(t), 12, maxNameW);
+    const nameW = 8 + Math.max(...themes.map(t => PS.textWidth(label(t), 12)));
+    const x0 = nameW + trendW;
+    const cellW = Math.min(110, (width - x0) / cols.length);
+    const rowH = 24, top = 34;
+    const height = top + themes.length * rowH;
+
+    const svg = d3.create("svg")
+      .attr("viewBox", `0 0 ${width} ${height}`).attr("height", height)
+      .attr("role", "group")
+      .attr("aria-label", `Themes over time by ${scheme.name}. Arrow keys move between themes; the Table button shows the numbers.`);
+    cols.forEach((p, i) => {
+      const cx = x0 + i * cellW + cellW / 2;
+      svg.append("text").attr("x", cx).attr("y", 14).attr("text-anchor", "middle").text(p.short);
+      if (p.partial) svg.append("text").attr("x", cx).attr("y", 27).attr("text-anchor", "middle").text("so far");
+    });
+
+    const hits = [];
+    themes.forEach((t, row) => {
+      const y = top + row * rowH;
+      const mid = y + rowH / 2;
+      const g = svg.append("g");
+      const trend = r.trends.get(t);
+      g.append("text").attr("class", t === selected ? "label current" : "label")
+        .attr("x", 0).attr("y", mid).attr("dominant-baseline", "middle").text(label(t));
+      g.append("text").attr("x", nameW).attr("y", mid).attr("dominant-baseline", "middle").text(PS.trendText(trend));
+      cols.forEach((p, i) => {
+        const s = shareOf(p, t);
+        const x = x0 + i * cellW;
+        if (!s) {
+          g.append("text").attr("x", x + cellW / 2).attr("y", mid).attr("text-anchor", "middle")
+            .attr("dominant-baseline", "middle").text("–");
+          return;
+        }
+        const bin = binOf(s.share);
+        g.append("rect").attr("x", x + 1).attr("y", y + 1).attr("width", cellW - 2).attr("height", rowH - 2)
+          .attr("rx", 3).attr("fill", `var(--seq-${bin + 1})`).attr("opacity", p.partial ? 0.6 : 1);
+        g.append("text").attr("class", bin >= 3 ? "cell-ink-inverse" : "cell-ink")
+          .attr("x", x + cellW / 2).attr("y", mid).attr("text-anchor", "middle")
+          .attr("dominant-baseline", "middle").text(pct(s.share));
+      });
+
+      const all = cols.map(p => ({name: p.label + (p.partial ? " so far" : ""), value: shareOf(p, t) ? pct(shareOf(p, t).share) : "–"}));
+      const show = event => {
+        let lines = all;
+        if (event instanceof Event && "clientX" in event) {
+          const [px] = d3.pointer(event, svg.node());
+          const p = cols[Math.floor((px - x0) / cellW)];
+          const s = p && shareOf(p, t);
+          if (s) {
+            lines = [
+              {name: `share in ${p.label}`, value: pct(s.share)},
+              {name: "documents", value: s.docs},
+              {name: "code (commits)", value: s.code},
+              {name: "discussion", value: s.discussion},
+              {name: "people", value: s.people},
+            ];
+          }
+        }
+        const head = trend ? `${name(t)} · ${trend.label}` : name(t);
+        PS.showTooltip(event, head, trend && lines === all
+          ? [...lines, {name: "recent vs earlier", value: `${pct(trend.recentShare)} vs ${pct(trend.earlierShare)}`}]
+          : lines);
+      };
+      hits.push(g.append("rect").attr("class", "hit")
+        .attr("x", 0).attr("y", y).attr("width", x0 + cols.length * cellW).attr("height", rowH)
+        .attr("role", "img")
+        .attr("aria-label", `${name(t)}${trend ? `, ${trend.label}` : ""}: ` +
+          all.map(a => `${a.name} ${a.value}`).join(", "))
+        .on("pointermove", show)
+        .on("focus", event => show(event.currentTarget))
+        .on("pointerleave blur", PS.hideTooltip).node());
+    });
+    PS.rovingFocus(hits, Math.max(0, themes.indexOf(selected)), "ArrowUp", "ArrowDown");
+    figure.plot.replaceChildren(svg.node());
+  },
+});

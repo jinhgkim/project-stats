@@ -136,6 +136,23 @@
   .plot .cell-ink { fill: var(--text-primary); font-size: 12px; }
   .plot .cell-ink-inverse { fill: var(--seq-ink-inverse); font-size: 12px; }
   .plot .scroll { max-height: 560px; overflow-y: auto; }
+  .plot .label.current { fill: var(--text-primary); font-weight: 600; }
+  .filter .note { color: var(--text-muted); }
+  .table-scroll { overflow-x: auto; }
+  table.themes th, table.themes td { text-align: left; vertical-align: top; }
+  table.themes td:nth-child(3), table.themes th:nth-child(3) { text-align: right; }
+  table.themes td.people { color: var(--text-secondary); min-width: 220px; }
+  table.themes tr.selected td { background: var(--wash); }
+  .link-button { border: none; background: none; padding: 0; color: var(--series-1); font-weight: 600; text-align: left; }
+  .link-button:hover { background: none; text-decoration: underline; }
+  .link-button[aria-expanded="true"] { text-decoration: underline; }
+  .details { margin-top: 12px; border-top: 1px solid var(--grid); padding-top: 12px; }
+  .details-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .details-head h3 { font-size: 15px; margin: 0; flex: 1; min-width: 200px; }
+  .details .meta { color: var(--text-secondary); }
+  .doc-list { list-style: none; padding: 0; margin: 8px 0; max-height: 480px; overflow-y: auto; }
+  .doc-list li { padding: 4px 0; border-bottom: 1px solid var(--grid); display: flex; flex-wrap: wrap; gap: 2px 10px; }
+  .doc-list a { color: var(--text-primary); }
   table.data { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
   table.data th, table.data td { text-align: right; padding: 4px 8px; border-bottom: 1px solid var(--grid); }
   table.data th:first-child, table.data td:first-child { text-align: left; }

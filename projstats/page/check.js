@@ -52,6 +52,28 @@ PS.onStart(() => {
     .map(c => [c.year, c.size, c.oneTime, ...PS.metrics.COHORT_OFFSETS.map(n => c.after[n])]);
   compare("cohorts: all kinds", cohorts, ref.cohorts);
 
+  // Theme shares per covered release cycle (to 6 decimals, as exported) and
+  // trend labels.
+  if (ref.theme_trends) {
+    const r = PS.metrics.themeTrends(rowsOf(null), data, PS.periodScheme("release"), {skipInProgress: true});
+    const name = t => data.themes.name[t];
+    const round = v => Math.round(v * 1e6) / 1e6;
+    const close = (a, b) => Math.abs(a - b) < 2e-6;
+    const got = r.periods.filter(p => p.covered).map(p => [p.label,
+      p.themes.map(s => [name(s.theme), s.share]).sort((a, b) => a[0].localeCompare(b[0]))]);
+    const want = ref.theme_trends.periods.map(p => [p.label,
+      Object.entries(p.shares).sort((a, b) => a[0].localeCompare(b[0]))]);
+    // Shares were rounded in Python; equal within rounding counts as a match.
+    for (let i = 0; i < Math.min(got.length, want.length); i++) {
+      if (got[i][0] !== want[i][0] || got[i][1].length !== want[i][1].length) continue;
+      got[i][1] = got[i][1].map(([t, s], k) => [t, close(s, want[i][1][k][1]) ? want[i][1][k][1] : round(s)]);
+    }
+    compare("theme shares by release", got, want);
+    const labels = [...r.trends].map(([t, x]) => [name(t), x.label]).sort((a, b) => a[0].localeCompare(b[0]));
+    compare("theme trend labels", labels,
+      Object.entries(ref.theme_trends.labels).sort((a, b) => a[0].localeCompare(b[0])));
+  }
+
   const passed = results.filter(r => r.ok).length;
   const box = PS.el("div", {class: "box"},
     PS.el("span", {class: passed === results.length ? "ok" : "bad"},

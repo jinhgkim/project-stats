@@ -131,5 +131,153 @@ PS.metrics = (() => {
     });
   }
 
-  return {periodCounts, personStats, cohorts, COHORT_OFFSETS, SEGMENTS: ["core", "regular", "casual", "one-time"]};
+  // Document index -> its theme indexes, and which documents are tagged.
+  let docIndex = null;
+  function themeIndex(data) {
+    if (docIndex) return docIndex;
+    const themesOf = new Map();
+    for (let k = 0; k < data.themes.doc.length; k++) {
+      const d = data.themes.doc[k];
+      if (!themesOf.has(d)) themesOf.set(d, []);
+      themesOf.get(d).push(data.themes.theme[k]);
+    }
+    const tagged = new Uint8Array(data.docs.day.length);
+    for (const d of data.themes.tagged) tagged[d] = 1;
+    docIndex = {themesOf, tagged};
+    return docIndex;
+  }
+
+  const TREND_ORDER = {rising: 0, fading: 1, steady: 2, "too few": 3};
+
+  // Theme stats per period, rising/fading labels, and top contributors.
+  // Mirrors trends.analyze(): activity counts toward its document's themes,
+  // shares are of activity on tagged documents, and only periods with at
+  // least half their documents tagged ("covered") get shares and trends.
+  // Trends compare the last covered period with all earlier covered ones.
+  function themeTrends(rows, data, scheme, {
+    skipInProgress = false, coverage = 0.5, rise = 1.5, fade = 0.67, minDocs = 5, top = 5,
+  } = {}) {
+    const D = data.docs, A = data.activity;
+    const {themesOf, tagged} = themeIndex(data);
+    const nThemes = data.themes.name.length;
+    const noThemes = [];
+
+    // Periods run from the first document's to the last's; anything outside
+    // falls in the nearest one, as trends.period_indexes() does.
+    let minKey = Infinity, maxKey = -Infinity;
+    const docKey = D.day.map(day => scheme.key(day));
+    for (const k of docKey) { if (k < minKey) minKey = k; if (k > maxKey) maxKey = k; }
+    if (scheme.kind === "release") { minKey = 0; maxKey = data.releases.day.length; }
+    const n = maxKey - minKey + 1;
+    if (!(n > 0)) return {periods: [], recent: null, earlier: [], trends: new Map(), contributors: new Map()};
+    const indexOf = day => Math.max(0, Math.min(n - 1, scheme.key(day) - minKey));
+    const grid = () => Array.from({length: nThemes}, () => new Array(n).fill(0));
+
+    const docsIn = new Array(n).fill(0), taggedIn = new Array(n).fill(0);
+    const themeDocs = grid();
+    const firstDoc = new Array(nThemes).fill(null);  // {day, p}
+    for (let d = 0; d < D.day.length; d++) {
+      const p = Math.max(0, Math.min(n - 1, docKey[d] - minKey));
+      docsIn[p] += 1;
+      if (!tagged[d]) continue;
+      taggedIn[p] += 1;
+      for (const t of themesOf.get(d) || noThemes) {
+        themeDocs[t][p] += 1;
+        if (firstDoc[t] === null || D.day[d] < firstDoc[t].day) firstDoc[t] = {day: D.day[d], p};
+      }
+    }
+
+    const commit = data.kinds.indexOf("commit");
+    const activityIn = new Array(n).fill(0);
+    const code = grid(), discussion = grid();
+    const people = new Map();  // t * n + p -> Set of people
+    const byPerson = Array.from({length: nThemes}, () => new Map());
+    const lastDay = new Array(nThemes).fill(null);
+    for (const i of rows) {
+      const d = A.doc[i];
+      if (d < 0 || !tagged[d]) continue;
+      const p = indexOf(A.day[i]);
+      activityIn[p] += 1;
+      const isCode = A.kind[i] === commit;
+      for (const t of themesOf.get(d) || noThemes) {
+        (isCode ? code : discussion)[t][p] += 1;
+        const cell = t * n + p;
+        if (!people.has(cell)) people.set(cell, new Set());
+        people.get(cell).add(A.person[i]);
+        const c = byPerson[t].get(A.person[i]) || {code: 0, discussion: 0};
+        if (isCode) c.code += 1; else c.discussion += 1;
+        byPerson[t].set(A.person[i], c);
+        if (lastDay[t] === null || A.day[i] > lastDay[t]) lastDay[t] = A.day[i];
+      }
+    }
+
+    const covered = docsIn.map((docs, p) => docs > 0 && taggedIn[p] / docs >= coverage);
+    const present = [];
+    for (let t = 0; t < nThemes; t++) {
+      if (themeDocs[t].some(Boolean) || code[t].some(Boolean) || discussion[t].some(Boolean)) present.push(t);
+    }
+    const name = t => data.themes.name[t];
+
+    const periods = [];
+    for (let p = 0; p < n; p++) {
+      const key = p + minKey;
+      const stats = [];
+      for (const t of present) {
+        const c = code[t][p], dsc = discussion[t][p];
+        if (!(c || dsc || themeDocs[t][p])) continue;
+        stats.push({
+          theme: t, docs: themeDocs[t][p], code: c, discussion: dsc,
+          people: people.has(t * n + p) ? people.get(t * n + p).size : 0,
+          share: covered[p] && activityIn[p] ? (c + dsc) / activityIn[p] : null,
+        });
+      }
+      stats.sort((a, b) => (b.code + b.discussion) - (a.code + a.discussion) || name(a.theme).localeCompare(name(b.theme)));
+      const newKnown = covered.slice(0, p).some(Boolean);
+      periods.push({
+        key, label: scheme.label(key), short: scheme.short(key),
+        partial: scheme.kind === "release" ? key === data.releases.day.length : p === n - 1,
+        docs: docsIn[p], tagged: taggedIn[p], covered: covered[p], activity: activityIn[p],
+        themes: stats,
+        newThemes: newKnown ? present.filter(t => firstDoc[t] && firstDoc[t].p === p).map(name).sort() : [],
+        newKnown,
+      });
+    }
+
+    const candidates = periods.map((x, p) => p)
+      .filter(p => covered[p] && activityIn[p] > 0 && !(skipInProgress && periods[p].partial));
+    const recent = candidates.length ? candidates[candidates.length - 1] : null;
+    const earlier = candidates.slice(0, -1);
+    const trends = new Map();
+    if (recent !== null && earlier.length) {
+      const base = earlier.reduce((sum, p) => sum + activityIn[p], 0);
+      for (const t of present) {
+        const total = code[t][recent] + discussion[t][recent];
+        const before = earlier.reduce((sum, p) => sum + code[t][p] + discussion[t][p], 0);
+        const recentShare = activityIn[recent] ? total / activityIn[recent] : 0;
+        const earlierShare = base ? before / base : 0;
+        const docs = [...earlier, recent].reduce((sum, p) => sum + themeDocs[t][p], 0);
+        let label;
+        if (docs < minDocs) label = "too few";
+        else if (earlierShare === 0) label = recentShare > 0 ? "rising" : "steady";
+        else if (recentShare >= rise * earlierShare) label = "rising";
+        else if (recentShare <= fade * earlierShare) label = "fading";
+        else label = "steady";
+        trends.set(t, {label, recentShare, earlierShare, docs});
+      }
+    }
+
+    const contributors = new Map();
+    for (const t of present) {
+      const ranked = [...byPerson[t]].sort((a, b) =>
+        (b[1].code + b[1].discussion) - (a[1].code + a[1].discussion) ||
+        PS.personName(a[0]).localeCompare(PS.personName(b[0])));
+      contributors.set(t, ranked.slice(0, top).map(([person, c]) => ({person, ...c})));
+    }
+    return {periods, recent, earlier, trends, contributors, present, firstDoc, lastDay};
+  }
+
+  return {
+    periodCounts, personStats, cohorts, themeIndex, themeTrends, TREND_ORDER,
+    COHORT_OFFSETS, SEGMENTS: ["core", "regular", "casual", "one-time"],
+  };
 })();

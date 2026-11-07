@@ -35,21 +35,26 @@ const PS = (() => {
 
   function set(changes) {
     Object.assign(state, changes);
+    for (const filter of filters) if (filter.sync) filter.sync(state);
     writeHash();
     renderAll();
   }
 
   // ---- registry ---------------------------------------------------------------
 
-  // filter: {id, init?(state), control(el, state, set), predicate?(state) -> (i) => bool}
+  // filter: {id, init?(state), control(el, state, set), predicate?(state) -> (i) => bool,
+  //          sync?(state)}; sync updates the control when another part of the
+  //          page changes its state.
   function registerFilter(filter) { filters.push(filter); }
-  // view: {id, title, order, render(figure, ctx)}; ctx = {data, rows, state, set}.
-  // Views appear by `order`, lowest first.
+  // view: {id, title, order, noTable?, render(figure, ctx)}; ctx = {data, rows,
+  // rowsExcept(filterId), state, set}. Views appear by `order`, lowest first.
   function registerView(view) { views.push(view); }
   function onStart(fn) { startHooks.push(fn); }
 
-  function filteredRows() {
-    const tests = filters.map(f => f.predicate && f.predicate(state)).filter(Boolean);
+  // Activity row indexes passing every filter (except the one named `skip`).
+  function filteredRows(skip) {
+    const tests = filters.filter(f => f.id !== skip)
+      .map(f => f.predicate && f.predicate(state)).filter(Boolean);
     const n = data.activity.day.length;
     const rows = [];
     outer: for (let i = 0; i < n; i++) {
@@ -60,7 +65,12 @@ const PS = (() => {
   }
 
   function renderAll() {
-    const ctx = {data, rows: filteredRows(), state, set};
+    const except = new Map();
+    const rowsExcept = id => {
+      if (!except.has(id)) except.set(id, filteredRows(id));
+      return except.get(id);
+    };
+    const ctx = {data, rows: filteredRows(), rowsExcept, state, set};
     for (const view of views) {
       try {
         view.render(view.figure, ctx);
@@ -96,6 +106,7 @@ const PS = (() => {
       legend: el("div", {class: "legend"}),
       plot: el("div", {class: "plot"}),
       table: el("div", {class: "table-wrap", hidden: true}),
+      details: el("div", {class: "details", hidden: true}),
       showTable: false,
     };
     tableButton.onclick = () => {
@@ -106,8 +117,8 @@ const PS = (() => {
       figure.legend.hidden = figure.showTable;
     };
     figure.root.append(
-      el("div", {class: "head"}, el("h2", {}, view.title), tableButton),
-      figure.subtitle, figure.controls, figure.legend, figure.plot, figure.table,
+      el("div", {class: "head"}, el("h2", {}, view.title), view.noTable ? null : tableButton),
+      figure.subtitle, figure.controls, figure.legend, figure.plot, figure.table, figure.details,
     );
     return figure;
   }
