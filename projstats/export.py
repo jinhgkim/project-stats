@@ -75,11 +75,12 @@ def build(conn: sqlite3.Connection, cfg: Config, generated: str | None = None) -
     kind_index = {k: i for i, k in enumerate(kinds)}
     rels = releases.load_releases(conn)
 
-    theme_names = trends.load_theme_names(conn)
+    on = cfg.themes.enabled
+    theme_names = trends.load_theme_names(conn) if on else {}
     theme_ids = sorted(theme_names, key=lambda t: theme_names[t].casefold())
     theme_index = {t: i for i, t in enumerate(theme_ids)}
-    doc_themes = trends.load_doc_themes(conn)
-    tagged = trends.load_tagged(conn)
+    doc_themes = trends.load_doc_themes(conn) if on else {}
+    tagged = trends.load_tagged(conn) if on else set()
     pairs = sorted(
         (doc_index[ref], theme_index[t])
         for ref, ids in doc_themes.items()
@@ -121,6 +122,7 @@ def build(conn: sqlite3.Connection, cfg: Config, generated: str | None = None) -
             "kind": [kind_index[a.kind] for a in activity],
             "doc": [doc_index.get(trends.doc_ref_of(a, links), -1) for a in activity],
         },
+        "features": {"themes": on},
         "themes": {
             "name": [theme_names[t] for t in theme_ids],
             "doc": [d for d, _ in pairs],
@@ -191,7 +193,7 @@ def reference(cfg, people, docs, activity, rels, links, conn) -> dict:
         )
 
     theme_trends = None
-    if rels:
+    if rels and cfg.themes.enabled:
         day_docs = [dataclasses.replace(d, ts=_day_start(d.ts)) for d in docs]
         report = trends.analyze(
             day_docs,

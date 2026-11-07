@@ -194,6 +194,9 @@ def _provider(cfg: config.Config) -> OllamaProvider:
 
 def cmd_tag(args) -> int:
     cfg = config.load(args.config)
+    if not cfg.themes.enabled:
+        print("error: themes are off ([themes] enabled = false)", file=sys.stderr)
+        return 1
     conn = storage.connect(cfg.db_path)
     docs = documents.load_documents(conn)
     if not docs:

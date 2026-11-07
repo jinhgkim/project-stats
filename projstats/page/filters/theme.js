@@ -10,6 +10,7 @@ PS.selectedTheme = state => {
 
 PS.registerFilter({
   id: "theme",
+  feature: "themes",
   control(box, state, set) {
     const T = PS.data.themes;
     if (!T.name.length) return;

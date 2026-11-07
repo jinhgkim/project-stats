@@ -11,6 +11,7 @@ PS.registerView({
   id: "themes-over-time",
   title: "Themes over time",
   tab: "themes",
+  feature: "themes",
   order: 50,
   render(figure, {data, rowsExcept, state}) {
     if (!data.themes.name.length) {

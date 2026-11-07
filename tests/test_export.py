@@ -5,7 +5,13 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from projstats import export, storage, themes
-from projstats.config import ActivityConfig, Config, PeopleConfig, RepoConfig
+from projstats.config import (
+    ActivityConfig,
+    Config,
+    PeopleConfig,
+    RepoConfig,
+    ThemesConfig,
+)
 from tests.github_rows import add_commit, add_commit_login, add_event, add_item
 
 
@@ -112,6 +118,17 @@ class ExportTest(unittest.TestCase):
         docs = self.data["docs"]["ref"]
         self.assertEqual([docs[i] for i in t["doc"]], ["5"])
         self.assertEqual(sorted(docs[i] for i in t["tagged"]), ["5", "6"])
+
+    def test_themes_off_leaves_out_every_theme_number(self):
+        self.assertEqual(self.data["features"], {"themes": True})
+        self.cfg.themes = ThemesConfig(enabled=False)
+        data = export.build(self.conn, self.cfg, generated="2026-11-06")
+        self.assertEqual(data["features"], {"themes": False})
+        self.assertEqual(
+            data["themes"], {"name": [], "doc": [], "theme": [], "tagged": []}
+        )
+        self.assertIsNone(data["reference"]["theme_trends"])
+        self.assertEqual(data["activity"], self.data["activity"])
 
     def test_sources_are_first_days_per_kind(self):
         self.assertEqual(

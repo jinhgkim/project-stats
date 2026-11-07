@@ -6,6 +6,7 @@ PS.registerView({
   id: "theme-table",
   title: "Theme details",
   tab: "themes",
+  feature: "themes",
   order: 60,
   noTable: true,
   render(figure, {data, rowsExcept, state, set}) {

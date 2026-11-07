@@ -5,8 +5,8 @@ PS.registerFilter({
   id: "period",
   init(state) {
     const valid = ["month", "quarter", "year", "release"];
-    if (!valid.includes(state.period)) state.period = "year";
-    if (state.period === "release" && !PS.data.releases.day.length) state.period = "year";
+    if (!valid.includes(state.period)) state.period = "quarter";
+    if (state.period === "release" && !PS.data.releases.day.length) state.period = "quarter";
   },
   control(box, state, set) {
     const options = [["month", "Month"], ["quarter", "Quarter"], ["year", "Year"]];

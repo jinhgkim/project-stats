@@ -51,12 +51,15 @@ const PS = (() => {
   //          sync?(state), target?}; sync updates the control when another part
   //          of the page changes its state. A control with a `target` view id
   //          sits in that view instead of the top bar (settings, not filters).
-  function registerFilter(filter) { filters.push(filter); }
-  // view: {id, title, order, tab, width?, bare?, noTable?, render(figure, ctx)};
+  function registerFilter(filter) { if (featureOn(filter)) filters.push(filter); }
+  // A filter or view with a `feature` (e.g. "themes") exists only when
+  // data.features turns it on.
+  const featureOn = item => !item.feature || Boolean(data.features[item.feature]);
+  // view: {id, title, order, tab, feature?, width?, bare?, noTable?, render(figure, ctx)};
   // ctx = {data, rows, rowsExcept(filterId), state, set}. Views appear by
   // `order` within their tab. width "half" pairs views on wide screens.
   // A bare view has no card or title.
-  function registerView(view) { views.push(view); }
+  function registerView(view) { if (featureOn(view)) views.push(view); }
 
   // Tabs, in order; the first is the default. Only the open tab's views are
   // drawn.
@@ -67,7 +70,7 @@ const PS = (() => {
   ];
   const tabOf = view => view.tab || TABS[0].id;
   function activeTab() {
-    return TABS.some(t => t.id === state.tab) ? state.tab : TABS[0].id;
+    return TABS.some(t => t.id === state.tab && views.some(v => tabOf(v) === t.id)) ? state.tab : TABS[0].id;
   }
   function onStart(fn) { startHooks.push(fn); }
 

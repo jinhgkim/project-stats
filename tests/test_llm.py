@@ -1,6 +1,8 @@
 """Ollama client and cache tests, copied from ~/projects/metacognition
 (tests/test_llm_config.py) along with projstats/llm.py."""
 
+import contextlib
+import io
 import json
 import socket
 import tempfile
@@ -9,7 +11,7 @@ import unittest
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from projstats import config, storage
+from projstats import cli, config, storage
 from projstats.llm import (
     CachedProvider,
     InvalidOutputError,
@@ -165,6 +167,33 @@ class OllamaConfigTest(unittest.TestCase):
     def test_unknown_setting_is_an_error(self):
         with self.assertRaises(ValueError):
             config.load(self.write("[ollama]\nmodle = 'typo'\n"))
+
+
+class ThemesSwitchTest(unittest.TestCase):
+    def write(self, text):
+        tmp = tempfile.NamedTemporaryFile("w", suffix=".toml", delete=False)
+        tmp.write('[repo]\ngithub = "o/r"\n' + text)
+        tmp.close()
+        self.addCleanup(Path(tmp.name).unlink)
+        return tmp.name
+
+    def test_on_by_default(self):
+        self.assertTrue(config.load(self.write("")).themes.enabled)
+
+    def test_can_be_turned_off(self):
+        cfg = config.load(self.write("[themes]\nenabled = false\n"))
+        self.assertFalse(cfg.themes.enabled)
+
+    def test_must_be_true_or_false(self):
+        with self.assertRaises(ValueError):
+            config.load(self.write('[themes]\nenabled = "no"\n'))
+
+    def test_tag_refuses_when_off(self):
+        path = self.write("[themes]\nenabled = false\n")
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            self.assertEqual(cli.main(["tag", path]), 1)
+        self.assertIn("themes are off", err.getvalue())
 
 
 if __name__ == "__main__":

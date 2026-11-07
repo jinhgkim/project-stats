@@ -34,6 +34,7 @@ class ReleasesConfig:
 
 @dataclass
 class ThemesConfig:
+    enabled: bool = True  # false: analytics only; no tagging, no Themes tab or filter
     about: str = ""  # one sentence about the project, for the tagging prompt
     areas: str = ""  # the project's main areas, so themes name a specific one
     # Names of the project itself; themes like "<name> support" get dropped.
@@ -134,6 +135,8 @@ def load(path: str | Path) -> Config:
             "0 < core_share < regular_share <= 1"
         )
     t = themes
+    if type(t.enabled) is not bool:
+        raise ValueError("[themes] enabled must be true or false")
     if min(t.max_per_doc, t.doc_chars, t.batch_docs, t.batch_chars) < 1:
         raise ValueError("[themes] limits must be at least 1")
     names = t.project_names

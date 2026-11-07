@@ -74,8 +74,12 @@ and People. They live in the URL, so a view can be bookmarked or shared.
 
 ## Usage
 
-Needs Python 3.11+, git, the `gh` CLI (logged in), and Ollama with the model
-named in the config. No Python dependencies.
+Needs Python 3.11+, git, and the `gh` CLI (logged in). No Python
+dependencies. Only `tag` needs Ollama, with the model named in the config.
+
+Themes are optional. For analytics only, set `enabled = false` under
+`[themes]` in the config: the Themes tab and the theme filter are left out of
+the page, and `tag` stops without calling Ollama.
 
 ```
 python3 -m projstats fetch  projects/oiio.toml   # clone/update + GitHub data
