@@ -98,7 +98,7 @@
   }
   button { cursor: pointer; }
   button:hover { background: var(--wash); }
-  button[aria-pressed="true"] { border-color: var(--text-secondary); font-weight: 600; }
+  button[aria-pressed="true"], button[aria-checked="true"] { border-color: var(--text-secondary); font-weight: 600; }
   /* Toggles reserve their bold width (data-label repeats the text), so pressing one doesn't resize it. */
   button[data-label] { display: inline-grid; justify-items: center; }
   button[data-label]::after { content: attr(data-label); font-weight: 600; height: 0; overflow: hidden; visibility: hidden; }
@@ -135,6 +135,7 @@
   #filter-dates { flex-basis: 100%; }
   .filter { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
   .filter > .label { color: var(--text-secondary); margin-right: 2px; }
+  .filter .choice { display: inline-flex; gap: 6px; }
   .filter label.check { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
   .filter label.check input { margin: 0; width: 16px; height: 16px; accent-color: var(--series-1); }
   #views { padding-bottom: 40px; }

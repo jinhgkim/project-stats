@@ -17,7 +17,7 @@ PS.registerFilter({
     const presets = [
       {id: "all", name: "All time", from: undefined, to: undefined},
       github !== undefined && {
-        id: "github", name: `Since GitHub PRs (${PS.dayToText(github).slice(0, 7)})`,
+        id: "github", name: "Since GitHub PRs",
         from: PS.dayToText(github), to: undefined,
       },
       endText && {id: "3y", name: "Last 3 years", from: yearsBack(3), to: undefined},

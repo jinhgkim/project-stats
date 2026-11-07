@@ -64,8 +64,8 @@ const PS = (() => {
     {id: "overview", label: "Overview",
      intro: () => "The headline numbers, and how many people contribute over time."},
     {id: "people", label: "People",
-     intro: () => "Who contributes, how often, and for how long. Activity means commits, " +
-       "PRs opened, reviews, issues opened, and comments."},
+     intro: () => "Who contributes, how often, and for how long. Activity means code (commits and " +
+       "PRs opened) and discussion (reviews, issues opened, and comments)."},
     {id: "themes", label: "Themes",
      intro: () => {
        const days = data.themes.tagged.map(d => data.docs.day[d]);
