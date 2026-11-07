@@ -54,7 +54,7 @@ PS.registerView({
     figure.subtitle.textContent = "What's in each theme, and who works on it? Choose a theme to see its commits, PRs, and issues.";
     PS.fillHowto(figure, [
       `Documents: commits, PRs, and issues tagged with the theme${state.from || state.to ? " within the selected dates" : ""}.`,
-      `Peak: the ${scheme.name} with the theme's highest share, and that share (periods follow Themes over time).`,
+      `Peak: measured per ${scheme.name}, as in Themes over time.`,
       "Top people: most activity on the theme's documents; the list below shows five.",
     ]);
 
@@ -105,14 +105,6 @@ PS.registerView({
       figure.open = null;
       this.render(figure, {data, rowsExcept, state, set});
     };
-    const repo = data.project.github;
-    const url = d => {
-      const ref = data.docs.ref[d];
-      const source = data.docs.source[d];
-      return source === "pr" ? `https://github.com/${repo}/pull/${ref}`
-        : source === "issue" ? `https://github.com/${repo}/issues/${ref}`
-        : `https://github.com/${repo}/commit/${ref}`;
-    };
     const kindName = {pr: "PR", issue: "issue", commit: "commit"};
     const {themesOf} = PS.metrics.themeIndex(data);
     const limit = figure.showAll ? open.docs.length : 50;
@@ -121,7 +113,7 @@ PS.registerView({
       const ref = data.docs.source[d] === "commit" ? data.docs.ref[d].slice(0, 7) : `#${data.docs.ref[d]}`;
       return PS.el("li", {},
         PS.el("span", {class: "meta"}, `${day(data.docs.day[d])} · ${kindName[data.docs.source[d]] || data.docs.source[d]} ${ref}`),
-        PS.el("a", {href: url(d)}, data.docs.title[d]),
+        PS.el("a", {href: PS.docUrl(d)}, data.docs.title[d]),
         others.length ? PS.el("span", {class: "meta"}, `also: ${others.join(", ")}`) : null);
     });
     const more = open.docs.length > limit ? PS.el("button", {type: "button"}, `Show all ${open.docs.length}`) : null;
@@ -131,13 +123,13 @@ PS.registerView({
         this.render(figure, {data, rowsExcept, state, set});
       };
     }
-    figure.details.replaceChildren(
+    figure.details.replaceChildren(...[
       PS.el("div", {class: "details-head"},
         PS.el("h3", {}, `${name(open.t)} · ${open.docs.length} document${open.docs.length === 1 ? "" : "s"}`),
         filterButton, close),
       open.contributors.length ? PS.el("p", {class: "meta"}, "Most active: " + open.contributors
         .map(c => `${PS.personName(c.person)} (${c.code} code, ${c.discussion} discussion)`).join(", ")) : null,
       PS.el("ul", {class: "doc-list"}, items),
-      more);
+      more].filter(Boolean));
   },
 });

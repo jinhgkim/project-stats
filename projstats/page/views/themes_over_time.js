@@ -48,7 +48,6 @@ PS.registerView({
       `Each cell: the theme's share of all activity on tagged documents in that ${scheme.name}.`,
       "A PR's reviews, comments, and linked commits count toward its themes; a document with two themes counts for both.",
       compared,
-      "Use the Activity filter to compare Code with Discussion.",
       untagged ? `${untagged} earlier ${scheme.name}${untagged === 1 ? " isn't" : "s aren't"} tagged yet, so ` +
         `${untagged === 1 ? "it's" : "they're"} left out.` : null,
     ].filter(Boolean));

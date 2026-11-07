@@ -12,7 +12,6 @@ PS.registerView({
     const gap = data.settings.return_gap_days;
     const rules = PS.segmentRules(state);
     const {stats, dataEnd} = PS.metrics.personStats(rows, data, rules, gap, rowsExcept("people"));
-    const ranged = Boolean(state.from || state.to);
     const pctOf = v => `${Math.round(v * 100)}%`;
     const names = {core: "Core", regular: "Regular", casual: "Casual", "one-time": "One-time"};
     const zoneColor = {
@@ -36,16 +35,10 @@ PS.registerView({
         `${Math.round(core.share * 100)}% of the activity${leftOut ? `, not counting the ${leftOut}` : ""}.`
       : "How concentrated is the work, and how many people help out now and then?";
     PS.fillHowto(figure, [
-      `People are ranked by activity${ranged ? " within the selected dates" : ""}. The curve adds them up: ` +
-        "its height is the share of all activity done by that many top people.",
       `Core: the fewest top people who reach ${pctOf(rules.core)}. Regular: the next, up to ${pctOf(rules.regular)}. ` +
         "Casual: everyone else with more than one activity. One-time: exactly one.",
-      `Ties at a cutoff join the higher group, so core can pass ${pctOf(rules.core)}.`,
       leftOut ? `The ${leftOut} is left out of the counts, but the groups are still drawn with everyone counted, ` +
         "so the same people stay in each one and the shares are of the activity that remains." : null,
-      "Zones follow the filters: with only Discussion on, core is who does most of it.",
-      "The bottom axis is stretched (each step right multiplies the people) so the top people stay readable.",
-      `Active now (hover, lists): activity in the last ${gap} days of data. Click a zone to list its people.`,
     ].filter(Boolean));
     PS.fillLegend(figure, PS.metrics.SEGMENTS.map(id => ({name: names[id], color: zoneColor[id], shape: "rect"})));
     const pct = v => `${(v * 100).toFixed(1)}%`;

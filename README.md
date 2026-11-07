@@ -11,7 +11,10 @@ and People. They live in the URL, so a view can be bookmarked or shared.
 
 - **Overview:** three summary tiles (active, new, and core people) and
   contributors per month, quarter, year, or release cycle, split into new,
-  returning, and continuing.
+  returning, and continuing. Click a column to list its people, then a
+  name to open a pane below with that person's commits, PRs, reviews,
+  issues, and comments in the period, linked to GitHub. Pick up to two
+  names to compare them side by side.
 - **People:** how concentrated the activity is, as a curve with segments
   (core, regular, casual, one-time) as zones, with a list of the people in
   each zone, and a timeline of one segment's people at a time.

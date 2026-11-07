@@ -20,6 +20,8 @@
     --series-2: #eb6834;
     --series-3: #1baf7a;
     --series-4: #eda100;
+    --kind-code: #e87ba4;
+    --kind-discussion: #6250d6;
     --series-1-faint: #86b6ef;
     /* One-hue blue ramps: seq-* for the theme heatmap (top three take the
        inverse ink), ord-* for timeline marks (lightest still clears 2:1). */
@@ -46,6 +48,8 @@
       --series-2: #d95926;
       --series-3: #199e70;
       --series-4: #c98500;
+      --kind-code: #d55181;
+      --kind-discussion: #9085e9;
       --series-1-faint: #184f95;
       --seq-1: #0d366b; --seq-2: #184f95; --seq-3: #256abf;
       --seq-4: #6da7ec; --seq-5: #9ec5f4; --seq-6: #cde2fb;
@@ -68,6 +72,8 @@
     --series-2: #d95926;
     --series-3: #199e70;
     --series-4: #c98500;
+    --kind-code: #d55181;
+    --kind-discussion: #9085e9;
     --series-1-faint: #184f95;
     --seq-1: #0d366b; --seq-2: #184f95; --seq-3: #256abf;
     --seq-4: #6da7ec; --seq-5: #9ec5f4; --seq-6: #cde2fb;
@@ -145,7 +151,9 @@
     width: 6px; height: 6px; margin: -3px 2px 0; border: solid var(--text-muted);
     border-width: 0 1.5px 1.5px 0; transform: rotate(45deg); transition: transform 0.15s;
   }
-  button[aria-expanded="true"] .chev { margin-top: 3px; transform: rotate(-135deg); }
+  button[aria-expanded="true"] .chev, .chev.up { margin-top: 3px; transform: rotate(-135deg); }
+  button.sort { display: inline-flex; gap: 6px; align-items: center; border: none; background: none; padding: 0; font-weight: 600; color: inherit; }
+  button.sort:hover { background: none; color: var(--text-primary); }
   .menu { position: relative; display: inline-block; }
   .menu-button { display: inline-flex; gap: 10px; align-items: center; justify-content: space-between; min-width: 170px; }
   .menu-list {
@@ -241,11 +249,11 @@
   input.short { width: 4.5em; }
   .filter .error { color: var(--critical); }
   .filter .error:empty { display: none; }
-  .plot .name { fill: var(--text-secondary); }
+  .plot .name { fill: var(--text-secondary); font-size: 13px; }
   .plot .name.current { fill: var(--text-primary); font-weight: 600; }
   .plot .cell-ink { fill: var(--text-primary); font-size: 12px; }
   .plot .cell-ink-inverse { fill: var(--seq-ink-inverse); font-size: 12px; }
-  .plot .scroll { max-height: 400px; overflow-y: auto; }
+  .plot .scroll { max-height: 480px; overflow-y: auto; }
   .plot .label.current { fill: var(--text-primary); font-weight: 600; }
   .filter .note { color: var(--text-muted); }
   table.data.themes th, table.data.themes td { text-align: left; vertical-align: top; }
@@ -288,6 +296,12 @@
   .status-key { margin: 6px 0 0; color: var(--text-secondary); font-size: 13px; }
   .status-key .status { margin-left: 2px; margin-right: 5px; }
   .status-key .status:not(:first-child) { margin-left: 14px; }
+  table.data.activity th, table.data.activity td { text-align: left; }
+  table.data.activity td:nth-child(-n+2) { white-space: nowrap; color: var(--text-secondary); padding-right: 20px; }
+  table.data.activity td a { color: var(--text-primary); }
+  .legend .key .status { margin-right: 0; }
+  table.data.activity th:first-child, table.data.activity td:first-child { padding-left: 0; }
+  figure[id^="view-activity"] .table-wrap { max-height: min(60vh, 520px); }
   table.data.people th.left, table.data.people td.left { text-align: left; }
   table.data.people td:first-child { white-space: nowrap; }
   .cellbar { display: flex; align-items: center; gap: 8px; }

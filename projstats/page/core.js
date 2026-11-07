@@ -278,6 +278,16 @@ const PS = (() => {
     return login ? el("a", {href: `https://github.com/${login}`}, personName(i)) : personName(i);
   }
 
+  // The GitHub page of a document (PR, issue, or commit) of this project.
+  function docUrl(d) {
+    const repo = data.project.github;
+    const ref = data.docs.ref[d];
+    const source = data.docs.source[d];
+    return source === "pr" ? `https://github.com/${repo}/pull/${ref}`
+      : source === "issue" ? `https://github.com/${repo}/issues/${ref}`
+      : `https://github.com/${repo}/commit/${ref}`;
+  }
+
   // ---- tooltip ------------------------------------------------------------------
 
   const tooltip = document.getElementById("tooltip");
@@ -476,7 +486,7 @@ const PS = (() => {
   // Other projects' pages sit next to this one (data.siblings, set when the
   // page is built). The title ends with the dropdown: Project Analytics: [name].
   // Switching keeps the view except what belongs to one project.
-  const PROJECT_ONLY = ["theme", "without"];
+  const PROJECT_ONLY = ["theme", "without", "who"];
   function setupProjectSwitch() {
     const select = document.getElementById("project");
     const projects = data.siblings || [];
@@ -605,7 +615,7 @@ const PS = (() => {
     data, get state() { return state; }, set, start,
     registerFilter, registerView, onStart,
     el, fillTable, fillLegend, swatch, fillHowto, jumpTo, openTab, showTooltip, hideTooltip, textWidth, rovingFocus,
-    personName, personLink, dayToDate,
+    personName, personLink, docUrl, dayToDate,
     dayToText, dateToDay, periodScheme, sourceMarkers, markerLabels, fitText, selectedKinds, KIND_NAMES,
   };
 })();

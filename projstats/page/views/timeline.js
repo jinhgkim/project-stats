@@ -1,6 +1,8 @@
 // View: one row per person, ordered by first activity, with a mark for each
 // period they were active in. One segment at a time is listed.
 
+const NAME_SIZE = 13;  // px; keep in step with `.plot .name` in template.html
+
 PS.registerView({
   id: "timeline",
   title: "Timeline per person",
@@ -45,11 +47,7 @@ PS.registerView({
 
     figure.subtitle.textContent = "When was each person active, and who is still around?";
     PS.fillHowto(figure, [
-      "One row per person in the chosen segment, ordered by first activity.",
-      `Each mark: a ${scheme.name} with activity; the shade shows how much (legend). ` +
-        "Periods follow Group by in the top bar.",
       `Bold names: active in the last ${gap} days of data.`,
-      "Segments use the cutoffs set in Segments. Hover a row for numbers.",
     ]);
     const BINS = [2, 6, 21];
     const binOf = n => BINS.filter(t => n >= t).length;
@@ -89,13 +87,13 @@ PS.registerView({
     const keys = d3.range(minKey, maxKey + 1);
 
     const width = Math.max(320, figure.plot.clientWidth || figure.root.clientWidth - 32);
-    const maxNameW = Math.min(170, Math.round(width * 0.38));
-    const short = name => PS.fitText(name, 11, maxNameW - 12);
-    const nameW = Math.min(maxNameW, 12 + Math.max(...people.map(s => PS.textWidth(short(PS.personName(s.person)), 11))));
+    const maxNameW = Math.min(220, Math.round(width * 0.38));
+    const short = name => PS.fitText(name, NAME_SIZE, maxNameW - 12);
+    const nameW = Math.min(maxNameW, 12 + Math.max(...people.map(s => PS.textWidth(short(PS.personName(s.person)), NAME_SIZE))));
     const innerW = width - nameW - 8;
     const x = d3.scaleBand(keys, [0, innerW]);
     const markW = x.step() >= 4 ? x.step() - 1 : x.step();
-    const rowH = 14, markH = 10;
+    const rowH = 22, markH = 14;
     const headH = 24 + 14 * PS.sourceMarkers(PS.selectedKinds()).length;
 
     // Header: period labels and data-source marker labels; it stays put

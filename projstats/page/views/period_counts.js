@@ -35,14 +35,10 @@ PS.registerView({
     figure.subtitle.textContent =
       `How many people contribute each ${scheme.name}, and are they newcomers, returners, or regulars?`;
     PS.fillHowto(figure, [
-      `Each column: everyone active in that ${scheme.name}, split three ways.`,
       `New: first activity${ranged ? " within the selected dates" : ""}. ` +
         `Returning: back after ${gap}+ days away. Continuing: everyone else.`,
       `Last seen (hover, table): people whose final activity is in that ${scheme.name}; ` +
         `unknown for the last ${gap} days, since recent people may return.`,
-      `Click a column to list its people.`,
-      "Faded columns are partial: the period is running, or the date range cuts it.",
-      "Vertical lines: where a kind of data starts (e.g. reviews in 2016), so a jump there isn't growth.",
     ]);
 
     const series = [
@@ -64,7 +60,7 @@ PS.registerView({
     // the period closes it.
     const picked = periods.find(p => state.pick === `${scheme.kind}:${p.key}`) || null;
     figure.details.hidden = picked === null;
-    const toggle = p => set({pick: picked === p ? undefined : `${scheme.kind}:${p.key}`});
+    const toggle = p => set({pick: picked === p ? undefined : `${scheme.kind}:${p.key}`, who: undefined});
 
     if (!periods.length) {
       figure.plot.replaceChildren(PS.el("p", {class: "empty"}, "No activity matches the filters."));
@@ -222,7 +218,7 @@ PS.registerView({
     if (picked === null) return;
     const name = `${picked.label}${partial(picked) ? " (partial)" : ""}`;
     const close = PS.el("button", {type: "button"}, "Close");
-    close.onclick = () => set({pick: undefined});
+    close.onclick = () => set({pick: undefined, who: undefined});
     const group = s => {
       const members = picked.people.filter(m => m.kind === s.id)
         .sort((a, b) => b.activity - a.activity || PS.personName(a.person).localeCompare(PS.personName(b.person)));
@@ -230,7 +226,17 @@ PS.registerView({
         PS.el("h4", {}, PS.swatch({color: s.color, shape: "rect"}), `${s.name} · ${members.length}`),
         members.length
           ? PS.el("ul", {}, members.map(m => PS.el("li", {},
-            PS.personLink(m.person), PS.el("span", {class: "count"}, m.activity.toLocaleString("en-US")))))
+            PS.el("button", {
+              type: "button", class: "link-button",
+              "aria-expanded": String(PS.whoList(state).includes(m.person)),
+              onclick: () => {
+                const patch = PS.whoToggle(state, m.person);
+                const slot = PS.whoList(patch).indexOf(m.person);
+                if (slot < 0) set(patch);
+                else PS.jumpTo(slot ? `view-activity-${slot + 1}` : "view-activity", patch);
+              },
+            }, PS.personName(m.person)),
+            PS.el("span", {class: "count"}, m.activity.toLocaleString("en-US")))))
           : PS.el("p", {class: "empty"}, "No one"));
     };
     figure.details.replaceChildren(
