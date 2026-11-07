@@ -9,7 +9,7 @@ import re
 import sqlite3
 import unicodedata
 from collections import Counter, defaultdict
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 
 NOREPLY = re.compile(r"^(?:\d+\+)?([^@]+)@users\.noreply\.github\.com$")
@@ -50,6 +50,39 @@ def load_identities(conn: sqlite3.Connection) -> list[Identity]:
         for name, email, n in conn.execute(sql):
             counts[name, email.lower()] += n
     return [Identity(n, e, c) for (n, e), c in sorted(counts.items())]
+
+
+def load_links(conn: sqlite3.Connection) -> list[tuple[str, str]]:
+    """(mailmapped email, login) pairs from GitHub's view of commit authors.
+
+    GitHub reports raw emails, so they go through the same .mailmap result the
+    commits table already holds.
+    """
+    mapped = {}
+    for sql in (
+        "SELECT DISTINCT raw_email, author_email FROM commits",
+        "SELECT DISTINCT raw_email, email FROM commit_coauthors",
+    ):
+        for raw, email in conn.execute(sql):
+            mapped[raw.lower()] = email.lower()
+    rows = conn.execute(
+        "SELECT DISTINCT email, login FROM commit_logins WHERE login IS NOT NULL"
+    )
+    return sorted({(mapped.get(email, email), login) for email, login in rows})
+
+
+def load_github_logins(conn: sqlite3.Connection) -> dict[str, int]:
+    """Activity count per login: PRs and issues opened, reviews, comments."""
+    rows = conn.execute(
+        """
+        SELECT author_login, COUNT(*) FROM (
+            SELECT author_login FROM live_items
+            UNION ALL
+            SELECT author_login FROM live_events
+        ) WHERE author_login IS NOT NULL GROUP BY 1
+        """
+    )
+    return dict(rows.fetchall())
 
 
 def name_key(name: str) -> str | None:
@@ -94,8 +127,14 @@ def group_people(
     identities: Iterable[Identity],
     bots: Iterable[str] = (),
     links: Iterable[tuple[str, str]] = (),
+    github_logins: Mapping[str, int] | None = None,
 ) -> People:
-    """Join identities into people; `links` are extra (email, login) pairs."""
+    """Join identities into people.
+
+    `links` are extra (email, login) pairs. `github_logins` maps logins seen on
+    GitHub to their activity counts; logins that never join a commit identity
+    become login-only people, keyed "login:<login>".
+    """
     identities = list(identities)
     links = [(e.lower(), login.casefold()) for e, login in links]
     uf = _UnionFind()
@@ -115,9 +154,18 @@ def group_people(
     for email, login in links:
         connect(email, ("login", login))
 
+    github: Counter = Counter()
+    display: dict[str, str] = {}  # casefolded login -> login as GitHub writes it
+    for login, n in (github_logins or {}).items():
+        github[login.casefold()] += n
+        display.setdefault(login.casefold(), login)
+
     groups: dict = defaultdict(list)
     for ident in identities:
         groups[uf.find(("email", ident.email))].append(ident)
+    github_roots: dict = defaultdict(set)
+    for login in github:
+        github_roots[uf.find(("login", login))].add(login)
 
     people, dropped = [], []
     bot_keys = {b.casefold() for b in bots}
@@ -130,7 +178,7 @@ def group_people(
         emails = set(by_email)
         logins = {
             node[1] for node in touching if node[0] == "login" and uf.find(node) == root
-        }
+        } | github_roots.get(root, set())
         reasons = sorted(
             f"{kind} '{value}'"
             for (kind, value), touched in touching.items()
@@ -142,9 +190,30 @@ def group_people(
             emails=emails,
             logins=logins,
             reasons=reasons,
-            activity=sum(by_email.values()),
+            activity=sum(by_email.values()) + sum(github[lg] for lg in logins),
         )
         if _is_bot(person, by_name, bot_keys):
+            dropped.append(person)
+        else:
+            people.append(person)
+
+    # Login-only people: GitHub activity but no commit identity. Several logins
+    # land here together only if they share an email that has no commit.
+    for root, logins in github_roots.items():
+        if root in groups:
+            continue
+        main = min(logins, key=lambda lg: (-github[lg], lg))
+        person = Person(
+            key=f"login:{main}",
+            name=display[main],
+            logins=set(logins),
+            reasons=[f"login '{lg}'" for lg in sorted(logins)]
+            if len(logins) > 1
+            else [],
+            activity=sum(github[lg] for lg in logins),
+        )
+        names = [display[lg] for lg in logins]
+        if _is_bot(person, names, bot_keys):
             dropped.append(person)
         else:
             people.append(person)

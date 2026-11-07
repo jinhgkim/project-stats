@@ -8,6 +8,7 @@ answer at every period size.
 
 import sqlite3
 from collections import Counter, defaultdict
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from itertools import groupby
@@ -18,14 +19,15 @@ from projstats.identity import People
 DAY = 86_400
 PERIOD_MONTHS = {"month": 1, "quarter": 3, "year": 12}
 COHORT_OFFSETS = (1, 2, 5)
+KINDS = ("commit", "pr", "review", "issue", "comment")
 
 
 @dataclass(frozen=True)
 class Activity:
     person: str  # Person.key
     ts: int
-    kind: str  # "commit" for now; later also pr, review, issue, comment
-    item: str  # commit sha, PR number, ...
+    kind: str  # one of KINDS
+    item: str  # commit sha, or "pr#123" / "issue#45" (also for reviews, comments)
 
 
 @dataclass
@@ -85,6 +87,37 @@ def load_commit_activity(conn: sqlite3.Connection, people: People) -> list[Activ
         seen.add((person.key, sha))
         out.append(Activity(person.key, ts, "commit", sha))
     out.sort(key=lambda a: (a.ts, a.person, a.item))
+    return out
+
+
+def load_activity(
+    conn: sqlite3.Connection, people: People, kinds: Iterable[str] | None = None
+) -> list[Activity]:
+    """Activity of every kind (or just `kinds`), oldest first.
+
+    PRs and issues count when opened, reviews when submitted, comments when
+    posted. Vanished GitHub rows, ghosts, and bots are left out.
+    """
+    kinds = set(KINDS if kinds is None else kinds)
+    unknown = kinds - set(KINDS)
+    if unknown:
+        raise ValueError(f"unknown activity kind(s): {', '.join(sorted(unknown))}")
+    out = load_commit_activity(conn, people) if "commit" in kinds else []
+    rows = conn.execute(
+        """
+        SELECT kind, author_login, created_at, kind || '#' || number FROM live_items
+        UNION ALL
+        SELECT e.kind, e.author_login, e.created_at, i.kind || '#' || i.number
+        FROM live_events e JOIN items i ON i.id = e.item_id
+        """
+    )
+    for kind, login, ts, item in rows:
+        if kind not in kinds or login is None:
+            continue
+        person = people.by_login.get(login.casefold())
+        if person is not None:
+            out.append(Activity(person.key, ts, kind, item))
+    out.sort(key=lambda a: (a.ts, a.person, a.kind, a.item))
     return out
 
 

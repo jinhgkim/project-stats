@@ -4,10 +4,13 @@ from projstats import storage
 from projstats.identity import (
     Identity,
     group_people,
+    load_github_logins,
     load_identities,
+    load_links,
     name_key,
     noreply_login,
 )
+from tests.github_rows import add_commit, add_commit_login, add_event, add_item
 
 
 def ids(*rows):
@@ -119,6 +122,75 @@ class LoadIdentitiesTest(unittest.TestCase):
             load_identities(conn),
             ids(("Ann Lee", "ann@a.example", 3), ("Bo Ma", "bo@b.example", 1)),
         )
+
+
+class GithubLoginsTest(unittest.TestCase):
+    def test_link_joins_commit_person_and_login(self):
+        result = group_people(
+            ids(("Ann Lee", "ann@a.example", 1)),
+            links=[("ann@a.example", "annl")],
+            github_logins={"AnnL": 5},
+        )
+        self.assertEqual(len(result.people), 1)
+        p = result.people[0]
+        self.assertEqual((p.key, p.logins, p.activity), ("ann@a.example", {"annl"}, 6))
+        self.assertIs(result.by_login["annl"], p)
+
+    def test_unlinked_login_becomes_login_only_person(self):
+        result = group_people(
+            ids(("Ann Lee", "ann@a.example", 1)), github_logins={"Hara-Yoki": 3}
+        )
+        p = result.by_login["hara-yoki"]
+        self.assertEqual(
+            (p.key, p.name, p.emails), ("login:hara-yoki", "Hara-Yoki", set())
+        )
+        self.assertEqual(len(result.people), 2)
+
+    def test_login_only_bots_dropped(self):
+        result = group_people(
+            [], bots=["helper"], github_logins={"renovate[bot]": 2, "helper": 1}
+        )
+        self.assertEqual(result.people, [])
+        self.assertEqual(len(result.bots), 2)
+
+    def test_logins_sharing_a_commitless_email_are_one_person(self):
+        result = group_people(
+            [],
+            links=[("x@e.example", "a"), ("x@e.example", "b")],
+            github_logins={"a": 3, "b": 1},
+        )
+        self.assertEqual(len(result.people), 1)
+        p = result.people[0]
+        self.assertEqual((p.key, p.logins, p.activity), ("login:a", {"a", "b"}, 4))
+
+
+class LoadGithubTest(unittest.TestCase):
+    def setUp(self):
+        self.conn = storage.connect(":memory:")
+        self.addCleanup(self.conn.close)
+
+    def test_links_use_mailmapped_emails(self):
+        add_commit(
+            self.conn,
+            "c1",
+            1,
+            "Alice Smith",
+            "alice@new.example",
+            "Alice",
+            "Alice@Old.example",
+        )
+        add_commit_login(self.conn, "c1", "alice@old.example", "alicegh")
+        add_commit_login(self.conn, "c1", "other@x.example", None)
+        self.assertEqual(load_links(self.conn), [("alice@new.example", "alicegh")])
+
+    def test_github_logins_skip_ghosts_and_vanished_rows(self):
+        add_item(self.conn, "I1", 1, "pr", "alicegh", 10)
+        add_item(self.conn, "I2", 2, "issue", None, 10)
+        add_item(self.conn, "I3", 3, "issue", "bo", 10, vanished=99)
+        add_event(self.conn, "E1", "I1", "comment", "bo", 11)
+        add_event(self.conn, "E2", "I1", "comment", "bo", 12, vanished=99)
+        add_event(self.conn, "E3", "I3", "comment", "bo", 13)  # on a vanished item
+        self.assertEqual(load_github_logins(self.conn), {"alicegh": 1, "bo": 1})
 
 
 if __name__ == "__main__":

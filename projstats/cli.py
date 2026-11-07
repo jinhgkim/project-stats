@@ -3,6 +3,7 @@
 import argparse
 import subprocess
 import sys
+from collections import Counter
 from datetime import UTC, datetime
 
 from projstats import config, github, gitlog, identity, retention, storage
@@ -65,15 +66,28 @@ def _print_github(conn, stats: github.FetchStats, full: bool) -> None:
     )
 
 
+def _load_people(conn, cfg: config.Config) -> identity.People:
+    return identity.group_people(
+        identity.load_identities(conn),
+        cfg.people.bots,
+        links=identity.load_links(conn),
+        github_logins=identity.load_github_logins(conn),
+    )
+
+
 def cmd_people(args) -> int:
     cfg = config.load(args.config)
     conn = storage.connect(cfg.db_path)
-    identities = identity.load_identities(conn)
-    result = identity.group_people(identities, cfg.people.bots)
-    emails = len({i.email for i in identities})
-    print(f"people: {len(result.people)} (from {emails} emails)")
+    result = _load_people(conn, cfg)
+    with_commits = [p for p in result.people if p.emails]
+    linked = [p for p in with_commits if p.logins]
+    print(
+        f"people: {len(result.people)} ({len(with_commits)} with commits, "
+        f"{len(linked)} of them linked to a GitHub login; "
+        f"{len(result.people) - len(with_commits)} GitHub-only)"
+    )
 
-    merged = [p for p in result.people if len(p.emails) > 1]
+    merged = [p for p in result.people if p.reasons]
     print(f"\nmerged ({len(merged)}):")
     for p in merged:
         print(f"  {p.name}  [{', '.join(p.reasons)}]")
@@ -82,7 +96,8 @@ def cmd_people(args) -> int:
 
     print(f"\nbots dropped ({len(result.bots)}):")
     for p in result.bots:
-        print(f"  {p.name}  {', '.join(sorted(p.emails))}  ({p.activity})")
+        ids = sorted(p.emails) or sorted(p.logins)
+        print(f"  {p.name}  {', '.join(ids)}  ({p.activity})")
     return 0
 
 
@@ -99,16 +114,22 @@ def cmd_summary(args) -> int:
     cfg = config.load(args.config)
     r = cfg.retention
     conn = storage.connect(cfg.db_path)
-    people = identity.group_people(identity.load_identities(conn), cfg.people.bots)
+    people = _load_people(conn, cfg)
     names = {p.key: p.name for p in people.people}
-    activity = retention.load_commit_activity(conn, people)
+    kinds = args.kinds.split(",") if args.kinds else list(retention.KINDS)
+    activity = retention.load_activity(conn, people, kinds)
     if not activity:
         print("error: no activity yet; run fetch first", file=sys.stderr)
         return 1
     stats = retention.person_stats(activity, r)
     data_end = max(a.ts for a in activity)
     total = len(activity)
-    print(f"activity: {total} (commits, incl. co-authored)  people: {len(stats)}")
+    per_kind = Counter(a.kind for a in activity)
+    print(
+        f"activity: {total} ("
+        + ", ".join(f"{per_kind[k]} {k}" for k in retention.KINDS if k in kinds)
+        + f")  people: {len(stats)}"
+    )
     print(f"range: {_day(activity[0].ts)} .. {_day(data_end)} (UTC)")
 
     print(
@@ -197,6 +218,12 @@ def main(argv=None) -> int:
     p = sub.add_parser("summary", help="temporary text report of retention numbers")
     p.add_argument("config", help="project config, e.g. projects/oiio.toml")
     p.add_argument("--period", choices=list(retention.PERIOD_MONTHS), default="year")
+    p.add_argument(
+        "--kinds",
+        help="comma-separated activity kinds (default: all of "
+        + ",".join(retention.KINDS)
+        + ")",
+    )
     p.set_defaults(func=cmd_summary)
 
     args = parser.parse_args(argv)

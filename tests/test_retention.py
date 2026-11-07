@@ -22,6 +22,7 @@ from projstats.config import RetentionConfig
 from projstats.retention import (
     Activity,
     cohorts,
+    load_activity,
     load_commit_activity,
     period_bounds,
     period_counts,
@@ -29,6 +30,7 @@ from projstats.retention import (
     period_label,
     person_stats,
 )
+from tests.github_rows import add_commit, add_commit_login, add_event, add_item
 
 CFG = RetentionConfig(return_gap_days=365, core_quarters=12, regular_quarters=4)
 
@@ -202,6 +204,54 @@ class LoadCommitActivityTest(unittest.TestCase):
                 ("bo@b.example", "c3"),
             ],
         )
+
+
+class LoadActivityTest(unittest.TestCase):
+    def setUp(self):
+        conn = self.conn = storage.connect(":memory:")
+        self.addCleanup(conn.close)
+        add_commit(conn, "c1", 100, "Ann Lee", "ann@a.example")
+        add_commit_login(conn, "c1", "ann@a.example", "ann")
+        add_item(conn, "P1", 5, "pr", "ann", 200)
+        add_item(conn, "I1", 6, "issue", "bo", 300)
+        add_event(conn, "R1", "P1", "review", "bo", 400)
+        add_event(conn, "C1", "I1", "comment", "Ann", 500)
+        add_event(conn, "C2", "I1", "comment", "bo", 600, vanished=999)
+        add_event(conn, "C3", "I1", "comment", None, 700)  # ghost
+        add_event(conn, "C4", "I1", "comment", "dependabot[bot]", 800)
+        self.people = identity.group_people(
+            identity.load_identities(conn),
+            links=identity.load_links(conn),
+            github_logins=identity.load_github_logins(conn),
+        )
+
+    def load(self, kinds=None):
+        return [
+            (a.person, a.ts, a.kind, a.item)
+            for a in load_activity(self.conn, self.people, kinds)
+        ]
+
+    def test_all_kinds(self):
+        self.assertEqual(
+            self.load(),
+            [
+                ("ann@a.example", 100, "commit", "c1"),
+                ("ann@a.example", 200, "pr", "pr#5"),
+                ("login:bo", 300, "issue", "issue#6"),
+                ("login:bo", 400, "review", "pr#5"),
+                ("ann@a.example", 500, "comment", "issue#6"),
+            ],
+        )
+
+    def test_kinds_filter(self):
+        self.assertEqual(
+            [k for _, _, k, _ in self.load(["review", "comment"])],
+            ["review", "comment"],
+        )
+
+    def test_unknown_kind(self):
+        with self.assertRaisesRegex(ValueError, "nope"):
+            self.load(["commit", "nope"])
 
 
 if __name__ == "__main__":
