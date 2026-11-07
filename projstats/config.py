@@ -35,6 +35,9 @@ class ReleasesConfig:
 @dataclass
 class ThemesConfig:
     about: str = ""  # one sentence about the project, for the tagging prompt
+    areas: str = ""  # the project's main areas, so themes name a specific one
+    # Names of the project itself; themes like "<name> support" get dropped.
+    project_names: list[str] = field(default_factory=list)
     max_per_doc: int = 3  # themes per document
     doc_chars: int = 1500  # each document's text is cut at this length
     batch_docs: int = 8  # documents per model call...
@@ -133,6 +136,9 @@ def load(path: str | Path) -> Config:
     t = themes
     if min(t.max_per_doc, t.doc_chars, t.batch_docs, t.batch_chars) < 1:
         raise ValueError("[themes] limits must be at least 1")
+    names = t.project_names
+    if not isinstance(names, list) or not all(isinstance(x, str) and x for x in names):
+        raise ValueError("[themes] project_names must be a list of names")
     try:
         groups = re.compile(releases.tag_pattern).groups
     except re.error as e:

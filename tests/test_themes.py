@@ -122,6 +122,16 @@ class ResolveTest(ThemesTestCase):
         )
         self.assertEqual(registry.prompt_lines(1), ["OpenColorIO (also: OCIO)"])
 
+    def test_prompt_lines_with_descriptions(self):
+        Registry(self.conn).create("Fuzzing", "Handling malformed input")
+        registry = Registry(self.conn)
+        b = registry.create("OpenColorIO")
+        registry.add_alias(b, "OCIO")
+        self.assertEqual(
+            registry.prompt_lines(10, descriptions=True),
+            ["Fuzzing: Handling malformed input", "OpenColorIO (also: OCIO)"],
+        )
+
 
 class RenameTest(ThemesTestCase):
     def test_keeps_id_and_old_name_as_alias(self):

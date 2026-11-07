@@ -38,8 +38,10 @@ think = false   # let the model reason first: slower, sometimes more careful
 
 [themes]
 about = "OpenImageIO: a C++/Python library and tools (oiiotool, iv, maketx) for reading, writing, and processing images in many formats, used in VFX and animation."
+areas = "image file formats (each format is its own area), ImageCache and TextureSystem, oiiotool, ImageBufAlgo, Python bindings, color management"
+project_names = ["OpenImageIO", "OIIO"]  # themes named after the project itself get dropped
 max_per_doc = 3       # themes per document
-doc_chars = 1500      # each document's text is cut here (90% of documents are shorter)
+doc_chars = 3000      # each document's text is cut here (99% of documents are shorter)
 batch_docs = 8        # documents per model call...
 batch_chars = 8000    # ...or fewer, if their text adds up to this
 registry_limit = 300  # existing themes listed in the prompt, most used first

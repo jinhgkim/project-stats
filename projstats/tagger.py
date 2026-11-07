@@ -8,6 +8,7 @@ only new or changed documents rerun, failed batches retried next time) follows
 
 import hashlib
 import logging
+import re
 import sqlite3
 import time
 from collections.abc import Callable, Iterator
@@ -21,7 +22,7 @@ from projstats.themes import Registry, resolve, theme_key
 
 log = logging.getLogger(__name__)
 
-VERSION = "tag-v1"  # bump when the prompt changes, so documents are re-tagged
+VERSION = "tag-v2"  # bump when the prompt changes, so documents are re-tagged
 
 GENERIC = {
     theme_key(name)
@@ -44,45 +45,73 @@ GENERIC = {
 
 SOURCES = {"pr": "PR", "issue": "Issue", "commit": "Commit"}
 
+# Words that, next to the project's own name, still name the whole project:
+# "OpenImageIO support", "OIIO core library".
+FILLER = {
+    "api",
+    "apis",
+    "base",
+    "code",
+    "codebase",
+    "core",
+    "development",
+    "feature",
+    "features",
+    "functionality",
+    "general",
+    "internals",
+    "library",
+    "main",
+    "project",
+    "support",
+    "the",
+}
+
 SYSTEM = """\
 You label the work in an open-source software project. Each item is a pull \
 request, an issue, or a commit. Label each item with the themes it belongs to.
 
 About the project: {about}
-
+{areas}
 Rules:
 - A theme is a lasting effort or functional area of the project, the kind of \
-thing a release note or roadmap would name. Good examples: Span-based APIs, \
-GPU texture system, Fuzzing and hardening, Python wheels, OpenEXR support, \
-Build system, Continuous integration, Color management.
-- Too narrow: a single function, class, or bug ("Fix crash in read_tile", \
-"ImageBuf::reset"). Use the effort or area it belongs to instead.
-- Too generic: "Bug fix", "Refactoring", "Improvements", "Maintenance". Never \
-use these.
+thing a release note or roadmap would name.
+- Use the most specific area that fits: one file format, component, or tool, \
+or an effort that spans several of them.
+- Too narrow: a single function, class, or bug. Use the effort or area it \
+belongs to instead.
+- Too broad: the project as a whole ("{project} support", "{project} core"), \
+or "Bug fix", "Refactoring", "Improvements", "Maintenance". Never use these.
+- Tag a theme only when the item is mainly about it. A passing mention is not \
+enough. When unsure, leave the theme out.
 - Reuse an existing theme name exactly whenever it fits, including when the \
-item uses a synonym or abbreviation for it.
-- Otherwise name a new theme in Title Case and list it in new_themes with a \
-one-line description.
+item uses a synonym or abbreviation for it. Give the name only, without its \
+description.
+- Otherwise name a new theme and list it in new_themes with a one-line \
+description.
 - Give each item 0 to {max_per_doc} themes. Trivial items (typo fixes, \
 version bumps) get none.
 
+The example below comes from a different project, an audio library. Its \
+theme names are not themes of this project; never use them.
+
 Example input:
 [d1] PR, 2024-05-02
-api: use span instead of raw pointers in ImageInput::read_scanlines
+mp3: handle ID3v2 tags with unsynchronization
 [d2] Issue, 2024-05-03
-Crash when reading a truncated EXR file
+Crash when a plugin is unloaded during playback (it also happens with the \
+new resampler)
 [d3] Commit, 2024-05-04
 Fix typo in README
 
 Example output:
 {{"documents": [
-  {{"id": "d1", "themes": ["Span-based APIs"]}},
-  {{"id": "d2", "themes": ["OpenEXR support", "Fuzzing and hardening"]}},
+  {{"id": "d1", "themes": ["MP3 decoding"]}},
+  {{"id": "d2", "themes": ["Plugin hosting"]}},
   {{"id": "d3", "themes": []}}],
  "new_themes": [
-  {{"name": "Span-based APIs", "description": "Replacing raw pointers with span"}},
-  {{"name": "OpenEXR support", "description": "Reading and writing OpenEXR files"}},
-  {{"name": "Fuzzing and hardening", "description": "Handling malformed input"}}]}}"""
+  {{"name": "MP3 decoding", "description": "Reading MP3 files and their tags"}},
+  {{"name": "Plugin hosting", "description": "Loading and running plugins"}}]}}"""
 
 SCHEMA = {
     "type": "object",
@@ -154,7 +183,7 @@ def batches(
 
 def build_prompt(batch: list[tuple[Document, str]], themes: list[str]) -> tuple:
     """The user prompt, plus a map from local ids ("d1") to doc refs."""
-    lines = ["Existing themes (reuse these exact names when they fit):"]
+    lines = ["Existing themes (reuse the exact names, without descriptions):"]
     lines += [f"- {t}" for t in themes] if themes else ["(none yet)"]
     lines += ["", "Items:"]
     local_ids = {}
@@ -166,7 +195,21 @@ def build_prompt(batch: list[tuple[Document, str]], themes: list[str]) -> tuple:
     return "\n".join(lines), local_ids
 
 
-def parse(result: dict, local_ids: dict, max_per_doc: int) -> tuple[dict, dict]:
+def is_catch_all(name: str, project_names: list[str]) -> bool:
+    """True for a theme that names the whole project, like "OIIO core"."""
+    key = theme_key(name)
+    for project in project_names:
+        pattern = rf"(?:^| ){re.escape(theme_key(project))}(?= |$)"
+        if re.search(pattern, key):
+            rest = re.sub(pattern, " ", key).split()
+            if all(word in FILLER for word in rest):
+                return True
+    return False
+
+
+def parse(
+    result: dict, local_ids: dict, max_per_doc: int, project_names: list[str] = ()
+) -> tuple[dict, dict]:
     """Validate model output: ({doc_ref: [names]}, {theme_key: description})."""
     tags: dict[str, list[str]] = {}
     for item in result.get("documents") or []:
@@ -182,6 +225,8 @@ def parse(result: dict, local_ids: dict, max_per_doc: int) -> tuple[dict, dict]:
                 continue
             key = theme_key(name)
             if not key or key in GENERIC or key in keys:
+                continue
+            if is_catch_all(name, project_names):
                 continue
             keys.add(key)
             kept.append(name.strip())
@@ -262,11 +307,13 @@ def tag_documents(
     for batch in batches(todo, cfg.batch_docs, cfg.batch_chars):
         refs = [doc.ref for doc, _ in batch]
         prompt, local_ids = build_prompt(
-            batch, registry.prompt_lines(cfg.registry_limit)
+            batch, registry.prompt_lines(cfg.registry_limit, descriptions=True)
         )
         try:
             result = llm.generate_json("tag", _system(cfg), prompt, SCHEMA)
-            tags, descriptions = parse(result, local_ids, cfg.max_per_doc)
+            tags, descriptions = parse(
+                result, local_ids, cfg.max_per_doc, cfg.project_names
+            )
             tags = {
                 ref: [n for n in names if not registry.is_blocked(n)]
                 for ref, names in tags.items()
@@ -301,7 +348,11 @@ def tag_documents(
 
 def _system(cfg: ThemesConfig) -> str:
     about = cfg.about or "(no description given)"
-    return SYSTEM.format(about=about, max_per_doc=cfg.max_per_doc)
+    areas = f"Main areas: {cfg.areas}\n" if cfg.areas else ""
+    project = cfg.project_names[0] if cfg.project_names else "Project"
+    return SYSTEM.format(
+        about=about, areas=areas, project=project, max_per_doc=cfg.max_per_doc
+    )
 
 
 def _duration(seconds: float) -> str:

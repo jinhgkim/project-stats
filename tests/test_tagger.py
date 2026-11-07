@@ -10,6 +10,7 @@ from projstats.releases import Release
 from projstats.tagger import (
     batches,
     build_prompt,
+    is_catch_all,
     memory_copy,
     parse,
     sample,
@@ -135,6 +136,34 @@ class TagDocumentsTest(TaggerTestCase):
 
         self.run_tagger(Recording())
         self.assertIn("About the project: An image library.", seen[0])
+        self.assertNotIn("Main areas", seen[0])
+
+        seen.clear()
+        self.cfg.areas = "formats, tools"
+        self.cfg.project_names = ["Imglib"]
+        self.run_tagger(Recording(), force=True)
+        self.assertIn("Main areas: formats, tools\n", seen[0])
+        self.assertIn('"Imglib support"', seen[0])
+
+    def test_existing_themes_are_listed_with_descriptions(self):
+        class Describing(FakeTagger):
+            def generate_json(self, task, system, prompt, schema):
+                result = super().generate_json(task, system, prompt, schema)
+                if task == "tag":
+                    result["new_themes"] = [
+                        {"name": "OpenEXR support", "description": "EXR files"}
+                    ]
+                return result
+
+        llm = Describing()
+        self.run_tagger(llm)
+        self.assertIn("- OpenEXR support: EXR files", llm.tag_prompts()[1])
+
+    def test_project_catch_alls_dropped(self):
+        self.cfg.project_names = ["OpenImageIO", "OIIO"]
+        llm = FakeTagger(extra=["OpenImageIO support", "OIIO core library"])
+        self.run_tagger(llm, docs=[DOCS[1]])
+        self.assertEqual([name for _, name in self.tags()], ["OpenEXR support"])
 
     def test_rerun_only_tags_new_or_changed_documents(self):
         self.run_tagger(FakeTagger())
@@ -227,6 +256,14 @@ class PieceTest(unittest.TestCase):
         tags, descriptions = parse(result, {"d1": "pr#1", "d2": "pr#2"}, 3)
         self.assertEqual(tags, {"pr#1": ["OpenEXR support"]})
         self.assertEqual(descriptions, {"openexr support": "EXR files"})
+
+    def test_is_catch_all(self):
+        names = ["OpenImageIO", "OIIO"]
+        for name in ["OpenImageIO", "OIIO core", "OpenImageIO Support", "oiio API"]:
+            self.assertTrue(is_catch_all(name, names), name)
+        for name in ["OIIO Python bindings", "OpenEXR support", "Build system"]:
+            self.assertFalse(is_catch_all(name, names), name)
+        self.assertFalse(is_catch_all("OIIO core", []))
 
     def test_sample_spreads_across_release_cycles(self):
         periods = release_periods(

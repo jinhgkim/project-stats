@@ -59,16 +59,19 @@ class Registry:
         self.by_key: dict[str, str] = {}
         self.names: dict[str, str] = {}
         self.aliases: dict[str, list[str]] = {}
+        self.descriptions: dict[str, str] = {}
         self.created = 0
         self.aliased = 0
         self.blocked = {
             r["key"] for r in conn.execute("SELECT key FROM blocked_themes")
         }
         for row in conn.execute(
-            "SELECT id, name, aliases FROM themes WHERE merged_into IS NULL"
+            "SELECT id, name, aliases, description FROM themes "
+            "WHERE merged_into IS NULL"
         ):
             if not self.is_blocked(row["name"]):
                 self._index(row["id"], row["name"], json.loads(row["aliases"]))
+                self.descriptions[row["id"]] = row["description"]
 
     def _index(self, theme_id: str, name: str, aliases: list[str]) -> None:
         self.names[theme_id] = name
@@ -86,8 +89,8 @@ class Registry:
         """True for themes the user deleted; they must not come back."""
         return theme_key(name) in self.blocked
 
-    def prompt_lines(self, limit: int) -> list[str]:
-        """Theme names (with aliases), most used first."""
+    def prompt_lines(self, limit: int, descriptions: bool = False) -> list[str]:
+        """Theme names (with aliases, and optionally descriptions), most used first."""
         rows = self.conn.execute(
             """
             SELECT t.id FROM themes t
@@ -104,7 +107,10 @@ class Registry:
             if len(lines) == limit:
                 break
             name, aliases = self.names[row["id"]], self.aliases[row["id"]]
-            lines.append(f"{name} (also: {', '.join(aliases)})" if aliases else name)
+            line = f"{name} (also: {', '.join(aliases)})" if aliases else name
+            if descriptions and self.descriptions[row["id"]]:
+                line += f": {self.descriptions[row['id']]}"
+            lines.append(line)
         return lines
 
     def create(self, name: str, description: str = "") -> str:
@@ -116,6 +122,7 @@ class Registry:
                 (theme_id, name, description, time.time()),
             )
         self._index(theme_id, name, [])
+        self.descriptions[theme_id] = description
         self.created += 1
         return theme_id
 
