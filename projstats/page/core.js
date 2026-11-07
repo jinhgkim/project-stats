@@ -150,7 +150,7 @@ const PS = (() => {
       legend: el("div", {class: "legend"}),
       plot: el("div", {class: "plot"}),
       table: el("div", {class: "table-wrap", hidden: true}),
-      details: el("div", {class: "details", hidden: true}),
+      details: el("div", {class: "details", id: `details-${view.id}`, hidden: true}),
       showTable: false,
     };
     tableButton.onclick = () => {
@@ -178,11 +178,15 @@ const PS = (() => {
     figure.howtoBody.replaceChildren(el("ul", {}, items.map(item => el("li", {}, item))));
   }
 
-  // Open the tab holding a view (by its element id) and scroll to it, clear
-  // of the pinned bar.
-  function jumpTo(id) {
-    const view = views.find(v => `view-${v.id}` === id);
-    if (view && tabOf(view) !== activeTab()) openTab(tabOf(view));
+  // Open the tab holding a view or its details area (by element id), apply
+  // any state `changes` (e.g. which list to show), and scroll there, clear of
+  // the pinned bar.
+  function jumpTo(id, changes = {}) {
+    const view = views.find(v => id === `view-${v.id}` || id === `details-${v.id}`);
+    const tab = view ? tabOf(view) : activeTab();
+    if (tab !== activeTab() || Object.keys(changes).length) {
+      set({...changes, tab: tab === TABS[0].id ? undefined : tab});
+    }
     const node = document.getElementById(id);
     if (node) requestAnimationFrame(() => node.scrollIntoView({behavior: "smooth", block: "start"}));
   }

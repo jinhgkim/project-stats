@@ -1,5 +1,6 @@
 // View: people per segment (core, regular, casual, one-time), with how many
-// are active now, beside each segment's share of all activity.
+// are active now, beside each segment's share of all activity. Choosing a
+// segment lists its people; the Overview tiles also open lists here.
 
 PS.registerView({
   id: "segments",
@@ -7,10 +8,10 @@ PS.registerView({
   tab: "people",
   width: "half",
   order: 20,
-  render(figure, {data, rows, state}) {
+  render(figure, {data, rows, state, set}) {
     const gap = data.settings.return_gap_days;
     const rules = PS.segmentRules(state);
-    const {stats} = PS.metrics.personStats(rows, data, rules, gap);
+    const {stats, dataEnd} = PS.metrics.personStats(rows, data, rules, gap);
     const ranged = Boolean(state.from || state.to);
     const pctOf = v => `${Math.round(v * 100)}%`;
     const names = {
@@ -53,6 +54,18 @@ PS.registerView({
       {name: "Share of activity", value: s => pct(s.share)},
     ], segments);
 
+    // People lists, chosen in the URL as `list`: a segment, or the active-now
+    // and new people the Overview tiles count.
+    const lists = {
+      ...Object.fromEntries(segments.map(x => [x.id, {title: x.name, test: p => p.segment === x.id}])),
+      active: {title: `Active in the last ${gap} days`, test: p => p.current},
+      new: {title: `New in the last ${gap} days`, test: p => dataEnd - p.first < gap},
+    };
+    const listId = stats.length && lists[state.list] ? state.list : null;
+    figure.root.classList.toggle("expanded", listId !== null);
+    figure.details.hidden = listId === null;
+    const toggleList = id => set({list: state.list === id ? undefined : id});
+
     if (!stats.length) {
       figure.plot.replaceChildren(PS.el("p", {class: "empty"}, "No activity matches the filters."));
       return;
@@ -94,7 +107,8 @@ PS.registerView({
       const by = y + barTop;
       const valueY = by + barH / 2;
       const g = svg.append("g");
-      g.append("text").attr("class", "label").attr("x", 0).attr("y", stacked ? y + 10 : valueY)
+      g.append("text").attr("class", s.id === listId ? "label current" : "label")
+        .attr("x", 0).attr("y", stacked ? y + 10 : valueY)
         .attr("dominant-baseline", "middle").text(s.name);
 
       // People: the active-now part first, then the rest, 2px apart.
@@ -129,16 +143,60 @@ PS.registerView({
         {name: "activity", value: s.activity},
         {name: "share of activity", value: pct(s.share)},
       ]);
-      hits.push(g.append("rect").attr("class", "hit")
+      hits.push(g.append("rect").attr("class", "hit clickable")
         .attr("x", 0).attr("y", y).attr("width", width).attr("height", rowH)
-        .attr("role", "img")
+        .attr("role", "button")
         .attr("aria-label", `${s.name}: ${s.people} people, ${s.current} active now, ` +
-          `${pct(s.share)} of activity`)
+          `${pct(s.share)} of activity. Press Enter to ${s.id === listId ? "close the list" : "list them"}.`)
         .on("pointermove", show)
-        .on("focus", event => show(event.currentTarget))
-        .on("pointerleave blur", PS.hideTooltip).node());
+        .on("focus", event => { figure.focusRow = i; show(event.currentTarget); })
+        .on("pointerleave blur", PS.hideTooltip)
+        .on("click", () => {
+          toggleList(s.id);
+          if (state.list) figure.details.scrollIntoView({behavior: "smooth", block: "nearest"});
+        })
+        .on("keydown", event => {
+          if (event.key !== "Enter" && event.key !== " ") return;
+          event.preventDefault();
+          figure.refocus = true;
+          toggleList(s.id);
+        }).node());
     });
-    PS.rovingFocus(hits, 0, "ArrowUp", "ArrowDown");
+    PS.rovingFocus(hits, figure.focusRow || 0, "ArrowUp", "ArrowDown");
     figure.plot.replaceChildren(svg.node());
+    if (figure.refocus) {
+      figure.refocus = false;
+      hits[figure.focusRow || 0].focus();
+    }
+
+    if (listId === null) return;
+    const list = lists[listId];
+    const people = stats.filter(list.test);
+    const listShare = total ? people.reduce((sum, p) => sum + p.activity, 0) / total : 0;
+    const showSegment = !PS.metrics.SEGMENTS.includes(listId);
+    const close = PS.el("button", {type: "button"}, "Close");
+    close.onclick = () => set({list: undefined});
+    const head = ["Person", ...(showSegment ? ["Segment"] : []), "Activity", "Share",
+      "First", "Last", "Active quarters", "Active now"];
+    const day = d => PS.dayToText(d);
+    const body = people.map(p => PS.el("tr", {},
+      PS.el("td", {}, PS.personLink(p.person)),
+      showSegment ? PS.el("td", {}, p.segment) : null,
+      PS.el("td", {}, p.activity.toLocaleString("en-US")),
+      PS.el("td", {}, pct(total ? p.activity / total : 0)),
+      PS.el("td", {}, day(p.first)),
+      PS.el("td", {}, day(p.last)),
+      PS.el("td", {}, p.quarters),
+      PS.el("td", {}, p.current ? "yes" : "–")));
+    figure.details.replaceChildren(
+      PS.el("div", {class: "details-head"},
+        PS.el("h3", {}, `${list.title} · ${people.length} ${people.length === 1 ? "person" : "people"} · ` +
+          `${pct(listShare)} of activity`),
+        close),
+      people.length
+        ? PS.el("div", {class: "table-wrap"},
+          PS.el("table", {class: "data"}, PS.el("thead", {}, PS.el("tr", {}, head.map(h => PS.el("th", {scope: "col"}, h)))),
+            PS.el("tbody", {}, body)))
+        : PS.el("p", {class: "empty"}, "No one matches."));
   },
 });

@@ -1,5 +1,6 @@
 // View: headline numbers at the top of the page, from the same filtered rows
-// as the views below. Each tile jumps to the view it comes from.
+// as the views below. People tiles open the list of those people (in
+// Segments); the theme tile jumps to Themes over time.
 
 PS.registerView({
   id: "summary",
@@ -16,7 +17,7 @@ PS.registerView({
         PS.el("span", {class: isText ? "value text" : "value"}, value),
         PS.el("span", {class: "what"}, what),
         more ? PS.el("span", {class: "more"}, more) : null);
-      button.onclick = () => PS.jumpTo(target);
+      button.onclick = () => (Array.isArray(target) ? PS.jumpTo(...target) : PS.jumpTo(target));
       return button;
     };
     if (!stats.length) {
@@ -31,10 +32,11 @@ PS.registerView({
     const coreShare = total ? core.reduce((sum, s) => sum + s.activity, 0) / total : 0;
     const tiles = [
       tile(fmt(active), `active in the last ${gap} days`, `of ${fmt(stats.length)} people in the data shown`,
-        "view-segments"),
-      tile(fmt(fresh), `new in the last ${gap} days`, "first activity in that time", "view-period-counts"),
+        ["details-segments", {list: "active"}]),
+      tile(fmt(fresh), `new in the last ${gap} days`, "first activity in that time",
+        ["details-segments", {list: "new"}]),
       tile(fmt(core.length), `people do ${Math.round(coreShare * 100)}% of the activity`,
-        "the core; the cutoff is set in Segments", "view-segments"),
+        "the core: see who they are", ["details-segments", {list: "core"}]),
     ];
 
     // The fastest-rising theme, if trends are known.
