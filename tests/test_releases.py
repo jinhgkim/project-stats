@@ -1,11 +1,10 @@
-import os
 import tempfile
 import unittest
 from pathlib import Path
-from unittest import mock
 
 from projstats import gitlog, storage
 from projstats.releases import Release, find_releases, import_releases, load_releases
+from tests import isolate_git
 from tests.test_gitlog import GitRepo
 
 OIIO = r"^(?:Release-|v)(\d+)\.(\d+)\.(\d+)(?:\.(\d+))?$"
@@ -40,10 +39,7 @@ class FindReleasesTest(unittest.TestCase):
 
 class ImportReleasesTest(unittest.TestCase):
     def setUp(self):
-        env = {"GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1"}
-        patcher = mock.patch.dict(os.environ, env)
-        patcher.start()
-        self.addCleanup(patcher.stop)
+        isolate_git(self)
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         self.work = GitRepo(Path(tmp.name) / "work")

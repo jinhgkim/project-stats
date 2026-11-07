@@ -103,15 +103,21 @@ TRANSIENT_MARKERS = (
 
 
 class GhClient:
-    def __init__(self, retries: int = 3, sleep: Callable[[float], None] = time.sleep):
+    def __init__(
+        self,
+        retries: int = 3,
+        sleep: Callable[[float], None] = time.sleep,
+        run: Callable[..., subprocess.CompletedProcess] = subprocess.run,
+    ):
         self.retries = retries
         self.sleep = sleep
+        self.run = run  # replaced in tests
 
     def query(self, query: str, variables: dict) -> dict:
         body = json.dumps({"query": query, "variables": variables})
         message = ""
         for attempt in range(self.retries):
-            r = subprocess.run(
+            r = self.run(
                 ["gh", "api", "graphql", "--input", "-"],
                 input=body,
                 capture_output=True,

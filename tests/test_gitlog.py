@@ -13,9 +13,9 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
-from unittest import mock
 
 from projstats import gitlog, storage
+from tests import isolate_git
 
 MAILMAP = "Alice Smith <alice@new.example> <alice@old.example>\n"
 
@@ -56,11 +56,7 @@ class GitRepo:
 
 class GitImportTest(unittest.TestCase):
     def setUp(self):
-        # Keep the user's git config (signing, hooks, aliases) out of the test.
-        env = {"GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1"}
-        patcher = mock.patch.dict(os.environ, env)
-        patcher.start()
-        self.addCleanup(patcher.stop)
+        isolate_git(self)
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         root = Path(tmp.name)

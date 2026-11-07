@@ -2,7 +2,6 @@ import json
 import subprocess
 import unittest
 from datetime import UTC, datetime
-from unittest import mock
 
 from projstats import storage
 from projstats.github import (
@@ -305,9 +304,8 @@ class GhClientTest(unittest.TestCase):
             return subprocess.CompletedProcess(cmd, code, out, err)
 
         sleeps = []
-        with mock.patch("projstats.github.subprocess.run", fake_run):
-            client = GhClient(sleep=sleeps.append)
-            return client.query("query { x }", {}), sleeps
+        client = GhClient(sleep=sleeps.append, run=fake_run)
+        return client.query("query { x }", {}), sleeps
 
     def test_returns_data(self):
         data, _ = self.run_with((0, json.dumps({"data": {"x": 1}}), ""))
