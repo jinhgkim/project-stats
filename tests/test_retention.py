@@ -33,10 +33,11 @@ from projstats.retention import (
     period_key,
     period_label,
     person_stats,
+    segments,
 )
 from tests.github_rows import add_commit, add_commit_login, add_event, add_item
 
-CFG = RetentionConfig(return_gap_days=365, core_quarters=12, regular_quarters=4)
+CFG = RetentionConfig(return_gap_days=365, core_share=0.80, regular_share=0.95)
 
 
 def ts(text: str) -> int:
@@ -186,6 +187,11 @@ class ActivityConfigTest(unittest.TestCase):
         self.assertEqual(cfg.activity.exclude_items, [3905, 12])
         self.assertEqual(config.load(self.write("")).activity.exclude_items, [])
 
+    def test_segment_shares_must_be_ordered(self):
+        bad = "[retention]\ncore_share = 0.9\nregular_share = 0.8\n"
+        with self.assertRaises(ValueError):
+            config.load(self.write(bad))
+
     def test_rejects_non_numbers(self):
         for bad in ('["pr#5"]', "[0]", "5", "[true]"):
             with self.subTest(bad=bad), self.assertRaises(ValueError):
@@ -199,7 +205,8 @@ class PersonStatsTest(unittest.TestCase):
         self.assertEqual(
             (a.activity, a.months, a.quarters, a.years), (3, 3, 2, (2020, 2021))
         )
-        self.assertEqual((a.longest_gap_days, a.returns, a.segment), (477, 1, "casual"))
+        # 8 activities: A 3, C 2, D 2 reach 80% (7); B has one.
+        self.assertEqual((a.longest_gap_days, a.returns, a.segment), (477, 1, "core"))
         self.assertEqual(stats["B"].segment, "one-time")
         self.assertEqual(stats["C"].longest_gap_days, 1)
         self.assertEqual(stats["C"].returns, 0)
@@ -210,21 +217,38 @@ class PersonStatsTest(unittest.TestCase):
             {"A": True, "B": False, "C": False, "D": True},
         )
 
-    def test_segments(self):
-        def quarters(person, n):
-            return [
-                Activity(
-                    person, ts(f"{2000 + q // 4}-{q % 4 * 3 + 1:02d}-01"), "commit", ""
-                )
-                for q in range(n)
-            ]
+    def test_segments_by_share(self):
+        # 100 activities. Running total: a 50, b 70, c 80 -> core reaches 80%
+        # at c (10), and d ties with c. Then e reaches 95%; f is casual.
+        counts = {"a": 50, "b": 20, "c": 10, "d": 10, "e": 5, "f": 3, "g": 1, "h": 1}
+        self.assertEqual(
+            segments(counts, CFG),
+            {
+                "a": "core",
+                "b": "core",
+                "c": "core",
+                "d": "core",
+                "e": "regular",
+                "f": "casual",
+                "g": "one-time",
+                "h": "one-time",
+            },
+        )
 
+    def test_one_time_comes_first(self):
+        # The 80% cutoff falls on people with one activity; they stay one-time.
+        self.assertEqual(
+            segments({"a": 1, "b": 1}, CFG), {"a": "one-time", "b": "one-time"}
+        )
+
+    def test_segments_follow_the_activity_given(self):
         stats = person_stats(
-            quarters("core", 12) + quarters("reg", 4) + quarters("cas", 3), CFG
+            [Activity("x", ts("2020-01-01"), "commit", str(i)) for i in range(9)]
+            + [Activity("y", ts("2020-01-02"), "review", "r")] * 2,
+            CFG,
         )
         self.assertEqual(
-            {s.person: s.segment for s in stats},
-            {"core": "core", "reg": "regular", "cas": "casual"},
+            {s.person: s.segment for s in stats}, {"x": "core", "y": "regular"}
         )
 
 

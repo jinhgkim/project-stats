@@ -141,7 +141,8 @@ class ExportTest(unittest.TestCase):
                 ["after 1.0", 1, 0, 0, 1, None, 1, True],
             ],
         )
-        self.assertEqual(ref["segments"][0]["segments"], {"casual": [2, 2]})
+        # Ann has 4 of 6 activities and bo 2: 80% needs both, so both are core.
+        self.assertEqual(ref["segments"][0]["segments"], {"core": [2, 2]})
         self.assertEqual(ref["cohorts"], [[2020, 2, 0, None, None, None]])
         # The release splits 2020: pr#5 and issue#6 fall in the 1.0 cycle.
         self.assertEqual(

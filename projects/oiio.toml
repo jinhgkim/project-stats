@@ -13,8 +13,11 @@ exclude_items = [
 
 [retention]
 return_gap_days = 365   # "returning" = back after at least this long away
-core_quarters = 12      # core: active in >= 12 distinct calendar quarters
-regular_quarters = 4    # regular: 4..11; casual: fewer, with >1 activity; one-time: 1 activity
+# Segments, ranked by activity: core = the top people who together do 80% of all
+# activity; regular = the next people, up to 90%; casual = everyone else with
+# more than one activity; one-time = exactly one activity.
+core_share = 0.80
+regular_share = 0.90
 
 [releases]
 # Final release tags: Release-1.2.0 (older) and v3.2.1.0 (newer). Betas, RCs,

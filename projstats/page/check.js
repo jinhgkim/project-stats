@@ -6,7 +6,7 @@ PS.onStart(() => {
   const data = PS.data;
   const ref = data.reference;
   const gap = data.settings.return_gap_days;
-  const rules = {core: data.settings.core_quarters, regular: data.settings.regular_quarters};
+  const rules = {core: data.settings.core_share, regular: data.settings.regular_share};
   const results = [];
 
   function rowsOf(kinds) {

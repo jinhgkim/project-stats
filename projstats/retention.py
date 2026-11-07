@@ -57,7 +57,7 @@ class PersonStats:
     years: tuple[int, ...]
     longest_gap_days: int
     returns: int
-    segment: str  # over the whole history given, not just recent activity
+    segment: str  # by share of the activity given (see segments())
     current: bool  # active within return_gap_days of the end of the data
 
 
@@ -228,22 +228,47 @@ def period_counts(
     return list(rows.values())
 
 
-def _segment(activity: int, quarters: int, cfg: RetentionConfig) -> str:
-    if activity == 1:
-        return "one-time"
-    if quarters >= cfg.core_quarters:
-        return "core"
-    if quarters >= cfg.regular_quarters:
-        return "regular"
-    return "casual"
+def segments(counts: dict[str, int], cfg: RetentionConfig) -> dict[str, str]:
+    """Segment per person from their activity counts.
+
+    One-time: exactly one activity. Otherwise, ranked by activity, core is the
+    top group that together reaches `core_share` of all activity and regular
+    the next group up to `regular_share`; people tied with the one who
+    crosses a cutoff join that group. Everyone else is casual.
+    """
+    total = sum(counts.values())
+    ranked = sorted(counts.values(), reverse=True)
+
+    def cutoff(share: float) -> int:
+        run = 0
+        for n in ranked:
+            run += n
+            if run >= share * total:
+                return n
+        return 0
+
+    core_min, regular_min = cutoff(cfg.core_share), cutoff(cfg.regular_share)
+    out = {}
+    for person, n in counts.items():
+        if n == 1:
+            out[person] = "one-time"
+        elif n >= core_min:
+            out[person] = "core"
+        elif n >= regular_min:
+            out[person] = "regular"
+        else:
+            out[person] = "casual"
+    return out
 
 
 def person_stats(activity: list[Activity], cfg: RetentionConfig) -> list[PersonStats]:
     """Cadence per person, most active first."""
     gap = cfg.return_gap_days * DAY
     data_end = max((a.ts for a in activity), default=0)
+    by_person = _by_person(activity)
+    segment_of = segments({p: len(ts) for p, ts in by_person.items()}, cfg)
     out = []
-    for person, times in _by_person(activity).items():
+    for person, times in by_person.items():
         gaps = [b - a for a, b in zip(times, times[1:], strict=False)]
         quarters = len({period_key(t, "quarter") for t in times})
         out.append(
@@ -257,7 +282,7 @@ def person_stats(activity: list[Activity], cfg: RetentionConfig) -> list[PersonS
                 years=tuple(sorted({period_key(t, "year") for t in times})),
                 longest_gap_days=max(gaps, default=0) // DAY,
                 returns=sum(g >= gap for g in gaps),
-                segment=_segment(len(times), quarters, cfg),
+                segment=segment_of[person],
                 current=data_end - times[-1] < gap,
             )
         )

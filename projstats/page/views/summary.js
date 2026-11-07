@@ -33,8 +33,8 @@ PS.registerView({
       tile(fmt(active), `active in the last ${gap} days`, `of ${fmt(stats.length)} people in the data shown`,
         "view-segments"),
       tile(fmt(fresh), `new in the last ${gap} days`, "first activity in that time", "view-period-counts"),
-      tile(`${Math.round(coreShare * 100)}%`, `of activity by ${fmt(core.length)} core people`,
-        `active in ${rules.core}+ quarters`, "view-segments"),
+      tile(fmt(core.length), `people do ${Math.round(coreShare * 100)}% of the activity`,
+        "the core; the cutoff is set in Segments", "view-segments"),
     ];
 
     // The fastest-rising theme, if trends are known.

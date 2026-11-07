@@ -12,10 +12,11 @@ PS.registerView({
     const rules = PS.segmentRules(state);
     const {stats} = PS.metrics.personStats(rows, data, rules, gap);
     const ranged = Boolean(state.from || state.to);
+    const pctOf = v => `${Math.round(v * 100)}%`;
     const names = {
-      core: `Core (${rules.core}+ quarters)`,
-      regular: `Regular (${rules.regular}–${rules.core - 1} quarters)`,
-      casual: `Casual (under ${rules.regular} quarters)`,
+      core: `Core (top ${pctOf(rules.core)})`,
+      regular: `Regular (up to ${pctOf(rules.regular)})`,
+      casual: "Casual (the rest)",
       "one-time": "One-time (1 activity)",
     };
     const total = stats.reduce((sum, s) => sum + s.activity, 0);
@@ -29,13 +30,15 @@ PS.registerView({
       };
     });
 
-    figure.subtitle.textContent = "How is the work spread between long-time regulars and occasional contributors?";
+    figure.subtitle.textContent = "Who does most of the work, and how many people help out now and then?";
     PS.fillHowto(figure, [
-      `A person's segment depends on how many calendar quarters they were active in` +
-        `${ranged ? " within the selected dates" : ""}; the thresholds above set the cutoffs.`,
-      "One-time: exactly one activity. Casual: more than one, in fewer quarters than regular.",
+      `People are ranked by how much activity they have${ranged ? " within the selected dates" : ""}. ` +
+        `Core: the top people who together do ${pctOf(rules.core)} of it. Regular: the next people, ` +
+        `up to ${pctOf(rules.regular)}. Casual: everyone else with more than one activity. One-time: exactly one.`,
+      `People tied at a cutoff join the group above it, so core can do a little more than ${pctOf(rules.core)}.`,
+      "The groups follow the filters: with only Reviews on, core means the people who do most of the reviewing.",
       `Active now (solid part of each bar): any activity in the last ${gap} days of the data shown.`,
-      "Right: each segment's share of all activity, so a small group can do most of the work.",
+      "Right: each segment's actual share of all activity.",
     ]);
     PS.fillLegend(figure, [
       {name: "Active now", color: "var(--series-1)", shape: "rect"},

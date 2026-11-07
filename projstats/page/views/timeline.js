@@ -47,7 +47,7 @@ PS.registerView({
       `Each mark is a ${scheme.name} with activity; its shade shows how much (see the legend). ` +
         "Periods follow Group by in Contributors per period, on the Overview tab.",
       `Bold names: active in the last ${gap} days of the data shown.`,
-      "Segments use the thresholds set in Segments. Hover a row for that person's numbers.",
+      "Segments use the cutoffs set in Segments. Hover a row for that person's numbers.",
     ]);
     const BINS = [2, 6, 21];
     const binOf = n => BINS.filter(t => n >= t).length;

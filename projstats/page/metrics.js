@@ -58,17 +58,30 @@ PS.metrics = (() => {
     return [...out.values()];
   }
 
-  // rules: {core, regular} quarter thresholds. Mirrors retention._segment().
-  function segmentOf(activity, quarters, rules) {
-    if (activity === 1) return "one-time";
-    if (quarters >= rules.core) return "core";
-    if (quarters >= rules.regular) return "regular";
-    return "casual";
+  // rules: {core, regular} shares of all activity (e.g. 0.8, 0.95). Returns a
+  // function from a person's activity count to their segment. Mirrors
+  // retention.segments(): one-time is exactly one activity; ranked by
+  // activity, core is the top group that reaches the core share and regular
+  // the next group up to the regular share, ties at a cutoff included.
+  function segmenter(counts, rules) {
+    const total = counts.reduce((sum, n) => sum + n, 0);
+    const ranked = [...counts].sort((a, b) => b - a);
+    const cutoff = share => {
+      let run = 0;
+      for (const n of ranked) {
+        run += n;
+        if (run >= share * total) return n;
+      }
+      return 0;
+    };
+    const coreMin = cutoff(rules.core), regularMin = cutoff(rules.regular);
+    return n => (n === 1 ? "one-time" : n >= coreMin ? "core" : n >= regularMin ? "regular" : "casual");
   }
 
-  // Cadence per person over `rows`. Mirrors retention.person_stats(): the
-  // segment counts distinct calendar quarters, and "current" means active
-  // within gapDays of the last day in `rows`. Returns {stats, dataEnd}.
+  // Cadence per person over `rows`. Mirrors retention.person_stats():
+  // segments come from each person's share of the activity in `rows`, and
+  // "current" means active within gapDays of the last day in `rows`.
+  // Returns {stats, dataEnd}.
   function personStats(rows, data, rules, gapDays) {
     const A = data.activity;
     const days = new Map();
@@ -79,6 +92,7 @@ PS.metrics = (() => {
       days.get(person).push(A.day[i]);
       if (A.day[i] > dataEnd) dataEnd = A.day[i];
     }
+    const segmentOf = segmenter([...days.values()].map(list => list.length), rules);
     const quarterOf = PS.periodScheme("quarter").key;
     const yearOf = PS.periodScheme("year").key;
     const stats = [];
@@ -95,7 +109,7 @@ PS.metrics = (() => {
       const last = list[list.length - 1];
       stats.push({
         person, first: list[0], last, activity: list.length, quarters, years,
-        longestGap, returns, segment: segmentOf(list.length, quarters, rules),
+        longestGap, returns, segment: segmentOf(list.length),
         current: dataEnd - last < gapDays,
       });
     }

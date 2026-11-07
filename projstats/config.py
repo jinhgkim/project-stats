@@ -51,8 +51,10 @@ class OllamaConfig:
 @dataclass
 class RetentionConfig:
     return_gap_days: int = 365  # back after at least this long away = "returning"
-    core_quarters: int = 12  # core: active in at least this many distinct quarters
-    regular_quarters: int = 4  # regular: at least this many, below core
+    # Segments by share of all activity: core is the top group that together
+    # does `core_share` of it, regular the next group up to `regular_share`.
+    core_share: float = 0.80
+    regular_share: float = 0.90
 
 
 @dataclass
@@ -117,10 +119,10 @@ def load(path: str | Path) -> Config:
     if not isinstance(ex, list) or not all(type(n) is int and n > 0 for n in ex):
         raise ValueError("[activity] exclude_items must be PR or issue numbers")
     r = retention
-    if not 0 < r.regular_quarters < r.core_quarters or r.return_gap_days <= 0:
+    if not 0 < r.core_share < r.regular_share <= 1 or r.return_gap_days <= 0:
         raise ValueError(
             "[retention] needs return_gap_days > 0 and "
-            "0 < regular_quarters < core_quarters"
+            "0 < core_share < regular_share <= 1"
         )
     t = themes
     if min(t.max_per_doc, t.doc_chars, t.batch_docs, t.batch_chars) < 1:
