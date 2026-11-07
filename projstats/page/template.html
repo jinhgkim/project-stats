@@ -202,6 +202,22 @@
   table.data th, table.data td { text-align: right; padding: 4px 8px; border-bottom: 1px solid var(--grid); }
   table.data th:first-child, table.data td:first-child { text-align: left; }
   table.data th { color: var(--text-secondary); font-weight: 600; position: sticky; top: 0; background: var(--surface-1); }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .status {
+    display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 8px;
+    border: 1.5px solid var(--text-muted); vertical-align: 1px; box-sizing: border-box;
+  }
+  .status.on { background: var(--series-1); border-color: var(--series-1); }
+  .status-key { margin: 6px 0 0; color: var(--text-secondary); font-size: 13px; }
+  .status-key .status { margin-left: 2px; margin-right: 5px; }
+  .status-key .status:not(:first-child) { margin-left: 14px; }
+  .status-key .hint { margin-left: 10px; color: var(--text-muted); }
+  table.data.people th.left, table.data.people td.left { text-align: left; }
+  table.data.people td:first-child { white-space: nowrap; }
+  .cellbar { display: flex; align-items: center; gap: 8px; }
+  .cellbar .num { min-width: 6ch; text-align: right; }
+  .cellbar .track { flex: 0 1 120px; min-width: 40px; height: 10px; }
+  .cellbar .bar { display: block; height: 100%; min-width: 1px; background: var(--series-1); border-radius: 0 2px 2px 0; }
   .table-wrap { max-height: 420px; overflow: auto; }
   #tooltip {
     position: fixed; pointer-events: none; z-index: 10; display: none;

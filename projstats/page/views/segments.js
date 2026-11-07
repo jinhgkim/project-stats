@@ -176,26 +176,42 @@ PS.registerView({
     const showSegment = !PS.metrics.SEGMENTS.includes(listId);
     const close = PS.el("button", {type: "button"}, "Close");
     close.onclick = () => set({list: undefined});
-    const head = ["Person", ...(showSegment ? ["Segment"] : []), "Activity", "Share",
-      "First", "Last", "Active quarters", "Active now"];
+    // Active now is a filled dot before the name (hollow when not); activity
+    // is a bar on one scale for the whole list, with the share on hover.
+    const head = [["Person", "left"], ...(showSegment ? [["Segment", "left"]] : []), ["Activity", "left"],
+      ["First"], ["Last"], ["Active quarters"]];
     const day = d => PS.dayToText(d);
-    const body = people.map(p => PS.el("tr", {},
-      PS.el("td", {}, PS.personLink(p.person)),
-      showSegment ? PS.el("td", {}, p.segment) : null,
-      PS.el("td", {}, p.activity.toLocaleString("en-US")),
-      PS.el("td", {}, pct(total ? p.activity / total : 0)),
-      PS.el("td", {}, day(p.first)),
-      PS.el("td", {}, day(p.last)),
-      PS.el("td", {}, p.quarters),
-      PS.el("td", {}, p.current ? "yes" : "–")));
+    const most = Math.max(1, ...people.map(p => p.activity));
+    const status = on => PS.el("span", {class: on ? "status on" : "status", title: on ? "active now" : "not active now"},
+      PS.el("span", {class: "sr-only"}, on ? "active now: " : "not active now: "));
+    const body = people.map(p => {
+      const share = pct(total ? p.activity / total : 0);
+      return PS.el("tr", {},
+        PS.el("td", {}, status(p.current), PS.personLink(p.person)),
+        showSegment ? PS.el("td", {class: "left"}, p.segment) : null,
+        PS.el("td", {class: "left", title: `${share} of activity`},
+          PS.el("div", {class: "cellbar"},
+            PS.el("span", {class: "num"}, p.activity.toLocaleString("en-US")),
+            PS.el("span", {class: "track"},
+              PS.el("span", {class: "bar", style: `width: ${(p.activity / most) * 100}%`})),
+            PS.el("span", {class: "sr-only"}, `, ${share} of activity`))),
+        PS.el("td", {}, day(p.first)),
+        PS.el("td", {}, day(p.last)),
+        PS.el("td", {}, p.quarters));
+    });
+    const key = PS.el("p", {class: "status-key"},
+      PS.el("span", {class: "status on", "aria-hidden": "true"}), `active in the last ${gap} days`,
+      PS.el("span", {class: "status", "aria-hidden": "true"}), "not",
+      PS.el("span", {class: "hint"}, "· hover a bar for its share of activity"));
     figure.details.replaceChildren(
       PS.el("div", {class: "details-head"},
         PS.el("h3", {}, `${list.title} · ${people.length} ${people.length === 1 ? "person" : "people"} · ` +
           `${pct(listShare)} of activity`),
         close),
+      key,
       people.length
         ? PS.el("div", {class: "table-wrap"},
-          PS.el("table", {class: "data"}, PS.el("thead", {}, PS.el("tr", {}, head.map(h => PS.el("th", {scope: "col"}, h)))),
+          PS.el("table", {class: "data people"}, PS.el("thead", {}, PS.el("tr", {}, head.map(([h, cls]) => PS.el("th", {scope: "col", class: cls}, h)))),
             PS.el("tbody", {}, body)))
         : PS.el("p", {class: "empty"}, "No one matches."));
   },
