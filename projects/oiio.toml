@@ -14,3 +14,10 @@ regular_quarters = 4    # regular: 4..11; casual: fewer, with >1 activity; one-t
 # Final release tags: Release-1.2.0 (older) and v3.2.1.0 (newer). Betas, RCs,
 # and spi-* tags don't match. Each major.minor's earliest match is its release.
 tag_pattern = '^(?:Release-|v)(\d+)\.(\d+)\.(\d+)(?:\.(\d+))?$'
+
+[ollama]
+host = "http://localhost:11434"
+model = "ornith-1.5:9b"
+timeout = 600   # seconds per request
+context = 32768 # tokens the model can see per request (prompt + answer)
+think = false   # let the model reason first: slower, sometimes more careful

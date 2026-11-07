@@ -95,6 +95,13 @@ CREATE TABLE IF NOT EXISTS releases (
     released_at INTEGER NOT NULL
 );
 
+-- Model replies keyed by a hash of (model, task, prompt, schema); see llm.py.
+CREATE TABLE IF NOT EXISTS llm_cache (
+    key        TEXT PRIMARY KEY,
+    response   TEXT NOT NULL,
+    created_at REAL NOT NULL
+);
+
 -- Analyses read these, so vanished rows are excluded in one place.
 CREATE VIEW IF NOT EXISTS live_items AS
     SELECT * FROM items WHERE vanished_at IS NULL;

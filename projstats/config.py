@@ -24,6 +24,15 @@ class ReleasesConfig:
 
 
 @dataclass
+class OllamaConfig:
+    host: str = "http://localhost:11434"
+    model: str = "ornith-1.5:9b"
+    timeout: float = 600  # seconds per request
+    context: int = 32768  # tokens the model can see per request (prompt + answer)
+    think: bool = False  # let the model reason first: slower, sometimes more careful
+
+
+@dataclass
 class RetentionConfig:
     return_gap_days: int = 365  # back after at least this long away = "returning"
     core_quarters: int = 12  # core: active in at least this many distinct quarters
@@ -37,6 +46,7 @@ class Config:
     people: PeopleConfig = field(default_factory=PeopleConfig)
     retention: RetentionConfig = field(default_factory=RetentionConfig)
     releases: ReleasesConfig = field(default_factory=ReleasesConfig)
+    ollama: OllamaConfig = field(default_factory=OllamaConfig)
 
     @property
     def slug(self) -> str:
@@ -69,7 +79,9 @@ def load(path: str | Path) -> Config:
     people = _build(PeopleConfig, data.pop("people", {}), "[people]")
     retention = _build(RetentionConfig, data.pop("retention", {}), "[retention]")
     releases = _build(ReleasesConfig, data.pop("releases", {}), "[releases]")
+    ollama = _build(OllamaConfig, data.pop("ollama", {}), "[ollama]")
     sections = {
+        "ollama": ollama,
         "releases": releases,
         "repo": repo,
         "people": people,
