@@ -30,7 +30,9 @@ PS.registerFilter({
     }
     box.append(...buttons);
     sync();
+    this.syncControl = sync;
   },
+  sync() { if (this.syncControl) this.syncControl(); },
   predicate(state) {
     const on = new Set(PS.selectedKinds());
     if (on.size === PS.data.kinds.length) return null;

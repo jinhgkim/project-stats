@@ -4,6 +4,8 @@
 PS.registerView({
   id: "cohorts",
   title: "Cohorts by first year",
+  tab: "people",
+  width: "half",
   order: 30,
   render(figure, {data, rows, state}) {
     const gap = data.settings.return_gap_days;
@@ -18,9 +20,13 @@ PS.registerView({
     const binNames = ["under 5%", "5–10%", "10–20%", "20–30%", "30–50%", "50%+"];
 
     figure.subtitle.textContent =
-      `People grouped by the calendar year of their first activity of the selected kinds` +
-      `${ranged ? " within the selected dates" : ""}. Each cell: the share of that group active ` +
-      `again 1, 2, or 5 years later; n/a until that year is complete. One-time: a single activity.`;
+      "Of the people who started in a given year, how many were still around 1, 2, and 5 years later?";
+    PS.fillHowto(figure, [
+      `Each row is everyone whose first activity${ranged ? " within the selected dates" : ""} fell in that year.`,
+      "Cells: the share of that group with any activity 1, 2, or 5 calendar years later; the legend gives each shade's range.",
+      "n/a: that later year isn't complete yet.",
+      "One-time: the share of the group with exactly one activity, ever.",
+    ]);
     PS.fillLegend(figure, binNames.map((name, i) => ({name, color: `var(--seq-${i + 1})`, shape: "rect"})));
     const pct = (n, of) => (of ? `${Math.round((100 * n) / of)}%` : "–");
     PS.fillTable(figure, [

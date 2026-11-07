@@ -22,6 +22,7 @@ function markRangeCuts(periods, scheme, state, data) {
 PS.registerView({
   id: "period-counts",
   title: "Contributors per period",
+  tab: "overview",
   order: 10,
   render(figure, {data, rows, state}) {
     const gap = data.settings.return_gap_days;
@@ -32,11 +33,16 @@ PS.registerView({
     const ranged = Boolean(state.from || state.to);
 
     figure.subtitle.textContent =
-      `People with activity of the selected kinds in each ${scheme.name}. ` +
-      `New: first activity${ranged ? " within the selected dates" : ""}. ` +
-      `Returning: back after ${gap}+ days away. Continuing: everyone else active. ` +
-      `Last seen: people whose final activity falls in that ${scheme.name}; ` +
-      `left blank for the last ${gap} days, since they may still come back.`;
+      `How many people contribute each ${scheme.name}, and are they newcomers, returners, or regulars?`;
+    PS.fillHowto(figure, [
+      `Each column is everyone with activity in that ${scheme.name}, split three ways.`,
+      `New: their first activity${ranged ? " within the selected dates" : ""}.`,
+      `Returning: back after ${gap} or more days away. Continuing: everyone else.`,
+      `Last seen (line): people whose final activity falls in that ${scheme.name}. It stops ` +
+        `${gap} days before the end of the data, since recent people may still come back.`,
+      "Faded columns are partial: the period is still running, or the date range cuts it.",
+      "Vertical lines mark where a kind of data starts (e.g. GitHub reviews in 2016), so a jump there isn't growth.",
+    ]);
 
     const series = [
       {id: "new", name: "New", color: "var(--series-1)"},

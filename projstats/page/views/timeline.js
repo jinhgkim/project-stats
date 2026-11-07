@@ -4,6 +4,7 @@
 PS.registerView({
   id: "timeline",
   title: "Timeline per person",
+  tab: "people",
   order: 40,
   render(figure, {data, rows, state, set}) {
     const gap = data.settings.return_gap_days;
@@ -40,10 +41,14 @@ PS.registerView({
     const people = stats.filter(s => shown.has(s.segment))
       .sort((a, b) => a.first - b.first || PS.personName(a.person).localeCompare(PS.personName(b.person)));
 
-    figure.subtitle.textContent =
-      `One row per person in the chosen segments, ordered by first activity of the selected kinds. ` +
-      `Each mark is a ${scheme.name} with activity; darker means more. Names in bold were active ` +
-      `in the last ${gap} days of the data shown.`;
+    figure.subtitle.textContent = "When was each person active, and who is still around?";
+    PS.fillHowto(figure, [
+      "One row per person in the chosen segments, ordered by when they started.",
+      `Each mark is a ${scheme.name} with activity; its shade shows how much (see the legend). ` +
+        "Periods follow Group by in Contributors per period, on the Overview tab.",
+      `Bold names: active in the last ${gap} days of the data shown.`,
+      "Segments use the thresholds set in Segments. Hover a row for that person's numbers.",
+    ]);
     const BINS = [2, 6, 21];
     const binOf = n => BINS.filter(t => n >= t).length;
     PS.fillLegend(figure, ["1 activity", "2–5", "6–20", "21+"]
@@ -111,7 +116,16 @@ PS.registerView({
     const body = d3.create("svg").attr("viewBox", `0 0 ${width} ${height}`).attr("height", height)
       .attr("role", "group")
       .attr("aria-label", "Timeline per person. Arrow keys move between people; the Table button lists them.");
+    // Every other row shaded, and light gridlines at the labeled periods, so
+    // a row is easy to follow across.
+    people.forEach((_, row) => {
+      if (row % 2) body.append("rect").attr("x", 0).attr("y", row * rowH).attr("width", width)
+        .attr("height", rowH).attr("fill", "var(--wash)");
+    });
     const bg = body.append("g").attr("transform", `translate(${nameW},0)`);
+    bg.append("g").attr("class", "grid").selectAll("line")
+      .data(keys.filter((k, i) => i % every === 0)).join("line")
+      .attr("x1", k => x(k)).attr("x2", k => x(k)).attr("y1", 0).attr("y2", height);
     const markerG = bg.append("g").attr("class", "marker");
     for (const m of markers) {
       markerG.append("line").attr("x1", x(m.key)).attr("x2", x(m.key)).attr("y1", 0).attr("y2", height);

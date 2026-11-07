@@ -147,8 +147,6 @@ PS.metrics = (() => {
     return docIndex;
   }
 
-  const TREND_ORDER = {rising: 0, fading: 1, steady: 2, "too few": 3};
-
   // Theme stats per period, rising/fading labels, and top contributors.
   // Mirrors trends.analyze(): activity counts toward its document's themes,
   // shares are of activity on tagged documents, and only periods with at
@@ -277,7 +275,7 @@ PS.metrics = (() => {
   }
 
   return {
-    periodCounts, personStats, cohorts, themeIndex, themeTrends, TREND_ORDER,
+    periodCounts, personStats, cohorts, themeIndex, themeTrends,
     COHORT_OFFSETS, SEGMENTS: ["core", "regular", "casual", "one-time"],
   };
 })();

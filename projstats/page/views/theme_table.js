@@ -1,10 +1,11 @@
-// View: one row per theme (documents, first and last seen, peak period,
-// trend, top contributors). A theme's name opens the list of its commits,
+// View: one row per theme (share now vs earlier, documents, first and last
+// seen, peak period, top contributors). A theme's name opens the list of its commits,
 // PRs, and issues, with GitHub links.
 
 PS.registerView({
   id: "theme-table",
   title: "Theme details",
+  tab: "themes",
   order: 60,
   noTable: true,
   render(figure, {data, rowsExcept, state, set}) {
@@ -46,17 +47,15 @@ PS.registerView({
         t, docs, peak, trend: r.trends.get(t), contributors: r.contributors.get(t) || [],
         first: docs.length ? data.docs.day[docs[docs.length - 1]] : null, last: r.lastDay[t],
       };
-    }).sort((a, b) => {
-      const oa = a.trend ? PS.metrics.TREND_ORDER[a.trend.label] : 4;
-      const ob = b.trend ? PS.metrics.TREND_ORDER[b.trend.label] : 4;
-      return oa - ob || (b.trend ? b.trend.recentShare : 0) - (a.trend ? a.trend.recentShare : 0) ||
-        b.docs.length - a.docs.length || name(a.t).localeCompare(name(b.t));
-    });
+    }).sort((a, b) => (b.trend ? b.trend.recentShare : 0) - (a.trend ? a.trend.recentShare : 0) ||
+      b.docs.length - a.docs.length || name(a.t).localeCompare(name(b.t)));
 
-    figure.subtitle.textContent =
-      `Documents tagged with each theme${state.from || state.to ? " within the selected dates" : ""}, ` +
-      `the ${scheme.name} with its highest share, its trend (as in Themes over time), and the people ` +
-      `with the most activity on it. Choose a theme to list its commits, PRs, and issues.`;
+    figure.subtitle.textContent = "What's in each theme, and who works on it? Choose a theme to see its commits, PRs, and issues.";
+    PS.fillHowto(figure, [
+      `Documents: commits, PRs, and issues tagged with the theme${state.from || state.to ? " within the selected dates" : ""}.`,
+      `Peak: the ${scheme.name} with the theme's highest share. Periods follow Themes over time.`,
+      "Top people: the most activity (commits, reviews, comments, ...) on the theme's documents; the list below shows five.",
+    ]);
 
     if (!themes.length) {
       figure.plot.replaceChildren(PS.el("p", {class: "empty"}, "No themed activity matches the filters."));
@@ -65,8 +64,8 @@ PS.registerView({
     }
 
     if (figure.open === undefined) figure.open = PS.selectedTheme(state);
-    const head = PS.el("tr", {}, ["Theme", "Trend", "Documents", "First seen", "Peak", "Last seen", "Top contributors"]
-      .map(h => PS.el("th", {scope: "col"}, h)));
+    const head = PS.el("tr", {}, ["Theme", "Recent vs earlier", "Documents", "First seen", "Last seen",
+      "Peak", "Top people"].map(h => PS.el("th", {scope: "col"}, h)));
     const body = themes.map(x => {
       const button = PS.el("button", {
         type: "button", class: "link-button", "aria-expanded": String(figure.open === x.t),
@@ -79,12 +78,12 @@ PS.registerView({
       };
       return PS.el("tr", {class: x.t === PS.selectedTheme(state) ? "selected" : null},
         PS.el("td", {}, button),
-        PS.el("td", {}, x.trend ? `${PS.trendText(x.trend)} (${pct(x.trend.recentShare)} vs ${pct(x.trend.earlierShare)})` : "–"),
-        PS.el("td", {}, x.docs.length),
-        PS.el("td", {}, x.first === null ? "–" : day(x.first)),
+        PS.el("td", {class: "nowrap num"}, x.trend ? `${pct(x.trend.recentShare)} vs ${pct(x.trend.earlierShare)}` : "–"),
+        PS.el("td", {class: "num"}, x.docs.length),
+        PS.el("td", {class: "nowrap"}, x.first === null ? "–" : day(x.first)),
+        PS.el("td", {class: "nowrap"}, x.last === null ? "–" : day(x.last)),
         PS.el("td", {}, x.peak ? `${x.peak.label} (${pct(x.peak.share)})` : "–"),
-        PS.el("td", {}, x.last === null ? "–" : day(x.last)),
-        PS.el("td", {class: "people"}, x.contributors
+        PS.el("td", {class: "people"}, x.contributors.slice(0, 3)
           .map(c => `${PS.personName(c.person)} ${c.code + c.discussion}`).join(", ") || "–"));
     });
     figure.plot.replaceChildren(PS.el("div", {class: "table-scroll"},

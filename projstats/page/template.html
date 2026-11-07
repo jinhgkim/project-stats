@@ -82,7 +82,7 @@
     color: var(--text-primary);
     font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
   }
-  header, #filters, #views, #check-panel { max-width: 1200px; margin: 0 auto; padding: 0 16px; }
+  header, #filter-inner, #views, #check-panel { max-width: 1440px; margin: 0 auto; padding: 0 16px; }
   header { padding-top: 20px; display: flex; gap: 16px; align-items: baseline; flex-wrap: wrap; }
   header h1 { font-size: 20px; font-weight: 600; margin: 0; }
   header .meta { color: var(--text-secondary); flex: 1; min-width: 200px; overflow-wrap: anywhere; }
@@ -98,18 +98,57 @@
   button[data-label] { display: inline-grid; justify-items: center; }
   button[data-label]::after { content: attr(data-label); font-weight: 600; height: 0; overflow: hidden; visibility: hidden; }
   button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--series-1); outline-offset: 1px; }
-  #filters { display: flex; flex-wrap: wrap; gap: 16px 24px; align-items: center; padding-top: 16px; padding-bottom: 8px; }
+  /* The top bar holds the filters that change every view; it stays pinned
+     while scrolling, except on narrow screens where it would cover too much. */
+  #filters {
+    position: sticky; top: 0; z-index: 5; margin-top: 12px;
+    background: var(--page); border-bottom: 1px solid var(--grid);
+  }
+  @media (max-width: 700px) { #filters { position: static; } }
+  #filter-controls { display: flex; flex-wrap: wrap; gap: 10px 24px; align-items: center; }
+  #reset[disabled] { opacity: 0.45; cursor: default; }
+  #filter-inner { padding-top: 10px; }
+  #tabs { display: flex; gap: 4px; margin-top: 10px; }
+  #tabs .tab {
+    border: none; border-radius: 6px 6px 0 0; background: none; padding: 8px 14px 7px;
+    color: var(--text-secondary); font-size: 15px; border-bottom: 3px solid transparent;
+  }
+  #tabs .tab:hover { color: var(--text-primary); background: var(--wash); }
+  #tabs .tab[aria-selected="true"] { color: var(--text-primary); font-weight: 600; border-bottom-color: var(--series-1); }
+  section.panel { padding-top: 14px; }
+  section.panel > .intro { color: var(--text-secondary); margin: 0 0 12px; max-width: 80ch; }
+  figure.view { scroll-margin-top: calc(var(--bar-h, 0px) + 12px); }
+  .grid { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); }
+  @media (min-width: 1100px) {
+    .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .grid > figure.view { grid-column: 1 / -1; }
+    .grid > figure.view.half { grid-column: auto; }
+  }
   #filter-dates { flex-basis: 100%; }
   .filter { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
   .filter > .label { color: var(--text-secondary); margin-right: 2px; }
-  #views { display: grid; gap: 16px; padding-top: 8px; padding-bottom: 32px; }
+  #views { padding-bottom: 40px; }
   figure.view {
     margin: 0; background: var(--surface-1); border: 1px solid var(--border);
     border-radius: 10px; padding: 16px; min-width: 0;
   }
   figure.view .head { display: flex; gap: 12px; align-items: flex-start; flex-wrap: wrap; }
-  figure.view h2 { font-size: 16px; font-weight: 600; margin: 0; flex: 1; min-width: 200px; }
-  figure.view .subtitle { color: var(--text-secondary); margin: 4px 0 8px; }
+  figure.view h3 { font-size: 16px; font-weight: 600; margin: 0; flex: 1; min-width: 200px; }
+  figure.view .subtitle { color: var(--text-primary); margin: 4px 0 6px; max-width: 80ch; }
+  figure.view.bare { background: none; border: none; padding: 0; }
+  details.howto { color: var(--text-secondary); margin: 0 0 8px; max-width: 80ch; }
+  details.howto summary { cursor: pointer; color: var(--text-muted); width: fit-content; }
+  details.howto ul { margin: 6px 0 4px; padding-left: 18px; }
+  details.howto li { margin: 2px 0; }
+  .tiles { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
+  .tile {
+    text-align: left; padding: 12px 14px; border-radius: 10px; background: var(--surface-1);
+    border: 1px solid var(--border); display: flex; flex-direction: column; gap: 2px;
+  }
+  .tile .value { font-size: 26px; font-weight: 600; line-height: 1.2; font-variant-numeric: tabular-nums; }
+  .tile .value.text { font-size: 18px; }
+  .tile .what { color: var(--text-secondary); }
+  .tile .more { color: var(--text-muted); font-size: 12px; }
   .legend { display: flex; flex-wrap: wrap; gap: 4px 16px; color: var(--text-secondary); margin: 4px 0 8px; }
   .legend .key { display: inline-flex; align-items: center; gap: 6px; }
   .legend svg { display: block; }
@@ -135,13 +174,14 @@
   .plot .name.current { fill: var(--text-primary); font-weight: 600; }
   .plot .cell-ink { fill: var(--text-primary); font-size: 12px; }
   .plot .cell-ink-inverse { fill: var(--seq-ink-inverse); font-size: 12px; }
-  .plot .scroll { max-height: 560px; overflow-y: auto; }
+  .plot .scroll { max-height: 400px; overflow-y: auto; }
   .plot .label.current { fill: var(--text-primary); font-weight: 600; }
   .filter .note { color: var(--text-muted); }
   .table-scroll { overflow-x: auto; }
-  table.themes th, table.themes td { text-align: left; vertical-align: top; }
-  table.themes td:nth-child(3), table.themes th:nth-child(3) { text-align: right; }
-  table.themes td.people { color: var(--text-secondary); min-width: 220px; }
+  table.data.themes th, table.data.themes td { text-align: left; vertical-align: top; }
+  table.data.themes td.num, table.data.themes th:nth-child(2), table.data.themes th:nth-child(3) { text-align: right; }
+  table.data.themes td.nowrap { white-space: nowrap; }
+  table.data.themes td.people { color: var(--text-secondary); min-width: 160px; }
   table.themes tr.selected td { background: var(--wash); }
   .link-button { border: none; background: none; padding: 0; color: var(--series-1); font-weight: 600; text-align: left; }
   .link-button:hover { background: none; text-decoration: underline; }
@@ -181,7 +221,12 @@
   <button id="theme" type="button" aria-label="Color theme">Theme: auto</button>
 </header>
 <div id="check-panel"></div>
-<div id="filters" role="toolbar" aria-label="Filters"></div>
+<div id="filters" role="region" aria-label="Filters">
+  <div id="filter-inner">
+    <div id="filter-controls" role="toolbar" aria-label="Filters for every tab"></div>
+    <div id="tabs" role="tablist" aria-label="Views"></div>
+  </div>
+</div>
 <main id="views"></main>
 <div id="tooltip" role="status"></div>
 <script id="data" type="application/json">__DATA__</script>

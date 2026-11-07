@@ -1,5 +1,6 @@
-// Control: the quarter thresholds for the core and regular segments. It
-// filters no rows. Defaults come from [retention] in the project config.
+// Setting: the quarter thresholds for the core and regular segments. It
+// filters no rows, so it sits in the Segments view. Defaults come from
+// [retention] in the project config.
 
 // {core, regular, error}: the rules in effect. Invalid values fall back to
 // the defaults, with `error` saying why.
@@ -14,6 +15,7 @@ PS.segmentRules = state => {
 
 PS.registerFilter({
   id: "segment-rules",
+  target: "segments",
   control(box, state, set) {
     const defaults = PS.segmentRules({});
     const input = (key, label) => {
@@ -31,7 +33,7 @@ PS.registerFilter({
     const error = PS.el("span", {class: "error", role: "status"});
     function sync() { error.textContent = PS.segmentRules(state).error || ""; }
     box.append(
-      PS.el("span", {class: "label"}, "Segments"),
+      PS.el("span", {class: "label"}, "Thresholds"),
       "core ≥", core, "quarters, regular ≥", regular, error);
     sync();
   },

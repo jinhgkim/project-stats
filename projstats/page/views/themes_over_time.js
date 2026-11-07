@@ -1,5 +1,6 @@
 // View: each theme's share of activity per release cycle or year, as a
-// heatmap, with its trend. Only periods that are mostly tagged get columns.
+// heatmap. Only periods that are mostly tagged get columns. Whether a theme
+// is rising or fading shows on hover, not as row labels.
 
 // The theme views' own period ("tp" in the URL): release cycles or years.
 // Theme counts per month or quarter are too small to compare, so these views
@@ -9,14 +10,10 @@ PS.themePeriod = state => {
   return state.tp === "year" || !hasReleases ? "year" : "release";
 };
 
-PS.trendText = trend => {
-  if (!trend) return "";
-  return {rising: "↑ rising", fading: "↓ fading", steady: "→ steady", "too few": "· too few"}[trend.label];
-};
-
 PS.registerView({
   id: "themes-over-time",
   title: "Themes over time",
+  tab: "themes",
   order: 50,
   render(figure, {data, rowsExcept, state, set}) {
     if (!data.themes.name.length) {
@@ -51,26 +48,26 @@ PS.registerView({
       const s = p.themes.find(x => x.theme === t);
       return s ? s : null;
     };
-    // Rising first, then fading, steady, too few; within each, the latest share.
-    const last = cols[cols.length - 1];
-    const latest = t => (last && shareOf(last, t) ? shareOf(last, t).share : 0);
+    // Largest share first, in the period trends are measured on (the latest
+    // complete one), or else the latest period shown.
+    const ranked = r.recent !== null ? r.periods[r.recent] : cols[cols.length - 1];
+    const rankShare = t => (ranked && shareOf(ranked, t) ? shareOf(ranked, t).share || 0 : 0);
     const themes = r.present.filter(t => cols.some(p => shareOf(p, t)))
-      .sort((a, b) => {
-        const ta = r.trends.get(a), tb = r.trends.get(b);
-        const oa = ta ? PS.metrics.TREND_ORDER[ta.label] : 0, ob = tb ? PS.metrics.TREND_ORDER[tb.label] : 0;
-        return oa - ob || (tb ? tb.recentShare : latest(b)) - (ta ? ta.recentShare : latest(a)) ||
-          name(a).localeCompare(name(b));
-      });
+      .sort((a, b) => rankShare(b) - rankShare(a) || name(a).localeCompare(name(b)));
 
-    const compared = r.recent === null ? "" : r.earlier.length
-      ? ` Trend: ${r.periods[r.recent].label} against ${r.earlier.length === 1 ? r.periods[r.earlier[0]].label
-        : `${r.earlier.length} earlier ${scheme.name}s`} (rising at 1.5× the share or more, fading at 0.67× or less, ` +
-        `needs 5+ documents).` : "";
-    figure.subtitle.textContent =
-      `Each theme's share of all activity on tagged documents, per ${scheme.name}. A PR's reviews, ` +
-      `comments, and linked commits count toward its themes, so a document with two themes counts for both.` +
-      compared +
-      (untagged ? ` ${untagged} earlier ${scheme.name}${untagged === 1 ? " is" : "s are"} not tagged yet and left out.` : "");
+    const compared = r.recent === null || !r.earlier.length ? null
+      : `Hover a theme to see its trend: ${r.periods[r.recent].label} compared with ${r.earlier.length === 1 ? r.periods[r.earlier[0]].label
+        : `${r.earlier.length} earlier ${scheme.name}s`}: rising at 1.5× the share or more, fading at 0.67× ` +
+        "or less, and too few under 5 documents.";
+    figure.subtitle.textContent = "Which areas of work are getting more attention, and which less?";
+    PS.fillHowto(figure, [
+      `Each cell: the theme's share of all activity on tagged documents in that ${scheme.name}.`,
+      "A PR's reviews, comments, and linked commits count toward its themes; a document with two themes counts for both.",
+      compared,
+      "Use the Activity filter to compare code (commits only) with discussion (the other kinds).",
+      untagged ? `${untagged} earlier ${scheme.name}${untagged === 1 ? " isn't" : "s aren't"} tagged yet, so ` +
+        `${untagged === 1 ? "it's" : "they're"} left out.` : null,
+    ].filter(Boolean));
 
     const BINS = [0.01, 0.03, 0.06, 0.10, 0.15];
     const binOf = v => BINS.filter(t => v >= t).length;
@@ -79,7 +76,6 @@ PS.registerView({
     const pct = v => (v === null || v === undefined ? "–" : `${(v * 100).toFixed(1)}%`);
     PS.fillTable(figure, [
       {name: "Theme", value: t => name(t)},
-      {name: "Trend", value: t => PS.trendText(r.trends.get(t)) || "–"},
       ...cols.map(p => ({
         name: p.label + (p.partial ? " (so far)" : ""),
         value: t => (shareOf(p, t) ? pct(shareOf(p, t).share) : "–"),
@@ -95,11 +91,10 @@ PS.registerView({
     }
 
     const width = Math.max(320, figure.plot.clientWidth || figure.root.clientWidth - 32);
-    const trendW = 78;
-    const maxNameW = Math.min(220, Math.round(width * 0.4) - trendW);
+    const maxNameW = Math.min(220, Math.round(width * 0.4));
     const label = t => PS.fitText(name(t), 12, maxNameW);
     const nameW = 8 + Math.max(...themes.map(t => PS.textWidth(label(t), 12)));
-    const x0 = nameW + trendW;
+    const x0 = nameW;
     const cellW = Math.min(110, (width - x0) / cols.length);
     const rowH = 24, top = 34;
     const height = top + themes.length * rowH;
@@ -122,7 +117,6 @@ PS.registerView({
       const trend = r.trends.get(t);
       g.append("text").attr("class", t === selected ? "label current" : "label")
         .attr("x", 0).attr("y", mid).attr("dominant-baseline", "middle").text(label(t));
-      g.append("text").attr("x", nameW).attr("y", mid).attr("dominant-baseline", "middle").text(PS.trendText(trend));
       cols.forEach((p, i) => {
         const s = shareOf(p, t);
         const x = x0 + i * cellW;

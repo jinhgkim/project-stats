@@ -4,6 +4,8 @@
 PS.registerView({
   id: "segments",
   title: "Segments",
+  tab: "people",
+  width: "half",
   order: 20,
   render(figure, {data, rows, state}) {
     const gap = data.settings.return_gap_days;
@@ -27,10 +29,14 @@ PS.registerView({
       };
     });
 
-    figure.subtitle.textContent =
-      `Each person's segment counts the distinct calendar quarters with activity of the selected kinds` +
-      `${ranged ? " within the selected dates" : ""}. Active now: any activity in the last ${gap} days ` +
-      `of the data shown. Right: each segment's share of all activity.`;
+    figure.subtitle.textContent = "How is the work spread between long-time regulars and occasional contributors?";
+    PS.fillHowto(figure, [
+      `A person's segment depends on how many calendar quarters they were active in` +
+        `${ranged ? " within the selected dates" : ""}; the thresholds above set the cutoffs.`,
+      "One-time: exactly one activity. Casual: more than one, in fewer quarters than regular.",
+      `Active now (solid part of each bar): any activity in the last ${gap} days of the data shown.`,
+      "Right: each segment's share of all activity, so a small group can do most of the work.",
+    ]);
     PS.fillLegend(figure, [
       {name: "Active now", color: "var(--series-1)", shape: "rect"},
       {name: "Not active now", color: "var(--series-1-faint)", shape: "rect"},

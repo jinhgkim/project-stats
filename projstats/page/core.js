@@ -40,15 +40,44 @@ const PS = (() => {
     renderAll();
   }
 
+  // The keys the top-bar filters own, cleared by Reset.
+  const FILTER_KEYS = ["from", "to", "kinds", "theme"];
+
+
+
   // ---- registry ---------------------------------------------------------------
 
   // filter: {id, init?(state), control(el, state, set), predicate?(state) -> (i) => bool,
-  //          sync?(state)}; sync updates the control when another part of the
-  //          page changes its state.
+  //          sync?(state), target?}; sync updates the control when another part
+  //          of the page changes its state. A control with a `target` view id
+  //          sits in that view instead of the top bar (settings, not filters).
   function registerFilter(filter) { filters.push(filter); }
-  // view: {id, title, order, noTable?, render(figure, ctx)}; ctx = {data, rows,
-  // rowsExcept(filterId), state, set}. Views appear by `order`, lowest first.
+  // view: {id, title, order, tab, width?, bare?, noTable?, render(figure, ctx)};
+  // ctx = {data, rows, rowsExcept(filterId), state, set}. Views appear by
+  // `order` within their tab. width "half" pairs views on wide screens.
+  // A bare view has no card or title.
   function registerView(view) { views.push(view); }
+
+  // Tabs, in order; the first is the default. Only the open tab's views are
+  // drawn. An intro may depend on the data.
+  const TABS = [
+    {id: "overview", label: "Overview",
+     intro: () => "The headline numbers, and how many people contribute over time."},
+    {id: "people", label: "People",
+     intro: () => "Who contributes, how often, and for how long. Activity means commits, " +
+       "PRs opened, reviews, issues opened, and comments."},
+    {id: "themes", label: "Themes",
+     intro: () => {
+       const days = data.themes.tagged.map(d => data.docs.day[d]);
+       return "What the work is about. A local language model tagged each commit, PR, and " +
+         "issue with up to 3 themes" +
+         (days.length ? `; tags cover documents from ${dayToText(Math.min(...days))} on.` : ".");
+     }},
+  ];
+  const tabOf = view => view.tab || TABS[0].id;
+  function activeTab() {
+    return TABS.some(t => t.id === state.tab) ? state.tab : TABS[0].id;
+  }
   function onStart(fn) { startHooks.push(fn); }
 
   // Activity row indexes passing every filter (except the one named `skip`).
@@ -71,7 +100,18 @@ const PS = (() => {
       return except.get(id);
     };
     const ctx = {data, rows: filteredRows(), rowsExcept, state, set};
+    const reset = document.getElementById("reset");
+    if (reset) reset.disabled = !FILTER_KEYS.some(k => state[k] !== undefined);
+    const open = activeTab();
+    for (const tab of TABS) {
+      if (!tab.button) continue;
+      const selected = tab.id === open;
+      tab.button.setAttribute("aria-selected", String(selected));
+      tab.button.tabIndex = selected ? 0 : -1;
+      tab.panel.hidden = !selected;
+    }
     for (const view of views) {
+      if (tabOf(view) !== open) continue;
       try {
         view.render(view.figure, ctx);
       } catch (err) {
@@ -99,9 +139,13 @@ const PS = (() => {
 
   function makeFigure(view) {
     const tableButton = el("button", {type: "button", "aria-pressed": "false", "data-label": "Table"}, "Table");
+    const classes = ["view", view.width, view.bare ? "bare" : null].filter(Boolean).join(" ");
+    const howtoBody = el("div", {class: "howto-body"});
     const figure = {
-      root: el("figure", {class: "view", id: `view-${view.id}`}),
+      root: el("figure", {class: classes, id: `view-${view.id}`}),
       subtitle: el("p", {class: "subtitle"}),
+      howto: el("details", {class: "howto", hidden: true}, el("summary", {}, "How to read this"), howtoBody),
+      howtoBody,
       controls: el("div", {class: "controls"}),
       legend: el("div", {class: "legend"}),
       plot: el("div", {class: "plot"}),
@@ -116,11 +160,35 @@ const PS = (() => {
       figure.plot.hidden = figure.showTable;
       figure.legend.hidden = figure.showTable;
     };
+    if (view.bare) {
+      figure.root.append(figure.plot);
+      return figure;
+    }
     figure.root.append(
-      el("div", {class: "head"}, el("h2", {}, view.title), view.noTable ? null : tableButton),
-      figure.subtitle, figure.controls, figure.legend, figure.plot, figure.table, figure.details,
+      el("div", {class: "head"}, el("h3", {}, view.title), view.noTable ? null : tableButton),
+      figure.subtitle, figure.howto, figure.controls, figure.legend, figure.plot, figure.table, figure.details,
     );
     return figure;
+  }
+
+  // The collapsed "How to read this" under a view's question: a list of
+  // short definitions. Its open state survives re-renders.
+  function fillHowto(figure, items) {
+    figure.howto.hidden = !items.length;
+    figure.howtoBody.replaceChildren(el("ul", {}, items.map(item => el("li", {}, item))));
+  }
+
+  // Open the tab holding a view (by its element id) and scroll to it, clear
+  // of the pinned bar.
+  function jumpTo(id) {
+    const view = views.find(v => `view-${v.id}` === id);
+    if (view && tabOf(view) !== activeTab()) openTab(tabOf(view));
+    const node = document.getElementById(id);
+    if (node) requestAnimationFrame(() => node.scrollIntoView({behavior: "smooth", block: "start"}));
+  }
+
+  function openTab(id) {
+    set({tab: id === TABS[0].id ? undefined : id});
   }
 
   // columns: [{name, value(row)}]; a "Table" toggle shows it instead of the plot.
@@ -340,19 +408,56 @@ const PS = (() => {
     };
     applyTheme();
 
-    const bar = document.getElementById("filters");
+    // Tabs: a tab list at the bottom of the pinned bar, right above the
+    // panels. Arrow keys, Home, and End move between tabs and open them.
+    const main = document.getElementById("views");
+    const tabList = document.getElementById("tabs");
+    views.sort((a, b) => (a.order || 0) - (b.order || 0));
+    const tabs = TABS.filter(tab => views.some(v => tabOf(v) === tab.id));
+    tabs.forEach((tab, i) => {
+      const grid = el("div", {class: "grid"});
+      tab.button = el("button", {
+        type: "button", role: "tab", class: "tab", id: `tab-${tab.id}`,
+        "aria-controls": `panel-${tab.id}`, "data-label": tab.label,
+      }, tab.label);
+      tab.button.onclick = () => openTab(tab.id);
+      tab.button.addEventListener("keydown", event => {
+        const to = {ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: tabs.length - 1}[event.key];
+        if (to === undefined) return;
+        event.preventDefault();
+        const next = tabs[(to + tabs.length) % tabs.length];
+        openTab(next.id);
+        next.button.focus();
+      });
+      tab.panel = el("section", {
+        class: "panel", id: `panel-${tab.id}`, role: "tabpanel", "aria-labelledby": `tab-${tab.id}`,
+      }, el("p", {class: "intro"}, tab.intro()), grid);
+      for (const view of views.filter(v => tabOf(v) === tab.id)) {
+        view.figure = makeFigure(view);
+        grid.append(view.figure.root);
+      }
+      tabList.append(tab.button);
+      main.append(tab.panel);
+    });
+
+    const bar = document.getElementById("filter-controls");
     for (const filter of filters) {
       if (filter.init) filter.init(state);
       const box = el("div", {class: "filter", id: `filter-${filter.id}`});
       filter.control(box, state, set);
-      bar.append(box);
+      const target = filter.target && views.find(v => v.id === filter.target);
+      if (target) target.figure.controls.append(box);
+      else bar.append(box);
     }
-    const main = document.getElementById("views");
-    views.sort((a, b) => (a.order || 0) - (b.order || 0));
-    for (const view of views) {
-      view.figure = makeFigure(view);
-      main.append(view.figure.root);
-    }
+    bar.append(el("button", {
+      type: "button", id: "reset", onclick: () => set(Object.fromEntries(FILTER_KEYS.map(k => [k, undefined]))),
+    }, "Reset filters"));
+
+    // Sections scroll clear of the pinned bar.
+    const barNode = document.getElementById("filters");
+    const updateBar = () => document.documentElement.style.setProperty("--bar-h", `${barNode.offsetHeight}px`);
+    updateBar();
+    window.addEventListener("resize", updateBar);
     writeHash();
     renderAll();
     for (const hook of startHooks) hook();
@@ -368,7 +473,7 @@ const PS = (() => {
   return {
     data, get state() { return state; }, set, start,
     registerFilter, registerView, onStart,
-    el, fillTable, fillLegend, showTooltip, hideTooltip, textWidth, rovingFocus,
+    el, fillTable, fillLegend, fillHowto, jumpTo, openTab, showTooltip, hideTooltip, textWidth, rovingFocus,
     personName, personLink, dayToDate,
     dayToText, dateToDay, periodScheme, sourceMarkers, markerLabels, fitText, selectedKinds, KIND_NAMES,
   };

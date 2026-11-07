@@ -38,7 +38,9 @@ PS.registerFilter({
 
     box.append(PS.el("span", {class: "label"}, "Dates"), select, from, PS.el("span", {}, "to"), to);
     sync();
+    this.syncControl = sync;
   },
+  sync() { if (this.syncControl) this.syncControl(); },
   predicate(state) {
     if (!state.from && !state.to) return null;
     const lo = state.from ? PS.dateToDay(state.from) : -Infinity;
