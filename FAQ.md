@@ -43,6 +43,10 @@ each review, each comment, and each commit (once per author or co-author). A
 PR discussed over several months adds activity in each of those months.
 Inline code-review comments aren't fetched, so they don't count.
 
+Example: Ana opens a PR in January and comments on it in February and March.
+Ben approves it in April. Ana has 3 activities (January, February, March) and
+Ben has 1 (April), so both count as active in those months.
+
 See `load_activity` in `projstats/retention.py`.
 
 ## Do 2 commits on the same day count as 1 activity?
