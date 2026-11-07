@@ -4,14 +4,20 @@ Shows project activity analytics over time, and which themes
 (lasting efforts or functional areas) get work and discussion. OpenImageIO is
 the first project.
 
-The output is one self-contained web page with three tabs:
+The output is one self-contained web page with three tabs. A pinned top bar
+holds the filters: dates, activity (all, code, or discussion), leaving out a
+very active person, and theme, plus Group by for the period shown on Overview
+and People. They live in the URL, so a view can be bookmarked or shared.
 
-- **Overview:** summary numbers and contributors per month, quarter, year,
-  or release cycle.
-- **People:** how concentrated the activity is, with segments (core,
-  regular, casual, one-time), and a timeline of each person's activity.
-- **Themes:** each theme's share of activity per release cycle, plus rising
-  and fading themes.
+- **Overview:** three summary tiles (active, new, and core people) and
+  contributors per month, quarter, year, or release cycle, split into new,
+  returning, and continuing.
+- **People:** how concentrated the activity is, as a curve with segments
+  (core, regular, casual, one-time) as zones, with a list of the people in
+  each zone, and a timeline of one segment's people at a time.
+- **Themes:** each theme's share of activity per release cycle as a heatmap
+  (rising and fading shows on hover), and a table of each theme's
+  documents, first and last seen, peak, and top people.
 
 ## How it works
 
@@ -35,7 +41,7 @@ The output is one self-contained web page with three tabs:
         ▼                                 ▼
 ┌───────────────────────┐  ┌──────────────────────────────┐
 │ retention: activity   │  │ trends: theme share per      │
-│ per period, cohorts,  │  │ release cycle, new, rising,  │
+│ per period, people    │  │ release cycle, new, rising,  │
 │ segments, returns     │  │ and fading themes            │
 └───────┬───────────────┘  └──────────────┬───────────────┘
         └─────────────┬───────────────────┘
@@ -56,6 +62,10 @@ The output is one self-contained web page with three tabs:
   become aliases. Fix the rest by hand with `themes rename`, `merge`, or
   `delete`.
 - **Commits, reviews, and comments inherit their PR's themes.**
+- **Segments** rank people by activity: core is the fewest people who
+  together reach a share of it (80% by default), regular the next up to 90%.
+  Leaving a person out keeps the same people in each segment, and the shares
+  are of the activity that remains.
 - **Python is the reference.** The page recomputes everything in JavaScript
   for its filters. Opening the page with `#check` compares those numbers to
   Python's.
