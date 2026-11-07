@@ -154,6 +154,21 @@ def cmd_themes(args) -> int:
             also = f"  (also: {', '.join(r.aliases)})" if r.aliases else ""
             print(f"  {r.docs:5}  {first:10}  {last:10}  {r.name}{also}")
         return 0
+    if args.action == "reset":
+        if not args.yes:
+            c = themes.reset_counts(conn)
+            print(
+                f"would clear {c.themes} themes, {c.tags} tags, and the tagging "
+                f"record of {c.tagged_docs} documents; deleted themes stay "
+                "blocked. Rerun with --yes to do it."
+            )
+            return 1
+        c = themes.reset(conn)
+        print(
+            f"cleared {c.themes} themes and {c.tags} tags; the next `projstats "
+            "tag` run tags every document"
+        )
+        return 0
     try:
         if args.action == "rename":
             themes.rename(conn, args.name, args.new_name)
@@ -217,7 +232,7 @@ def cmd_tag(args) -> int:
 
 
 def _sample_run(conn, provider, docs, texts, settings, n: int) -> int:
-    """Tag a spread-out sample against an in-memory copy; nothing is saved."""
+    """Tag a spread-out sample, starting with no themes; nothing is saved."""
     periods = documents.release_periods(releases.load_releases(conn))
     picked = tagger.sample(docs, periods, n)
     text_of = {d.ref: t for d, t in zip(docs, texts, strict=True)}
@@ -225,6 +240,7 @@ def _sample_run(conn, provider, docs, texts, settings, n: int) -> int:
     provider.generate_json("warmup", "Reply in JSON.", "Say ok.", {"type": "object"})
     print(f"model {provider.model} loaded in {time.monotonic() - t:.1f}s")
     copy = tagger.memory_copy(conn)
+    themes.reset(copy)  # a fresh start, like a full run after `themes reset`
     try:
         stats = tagger.tag_documents(
             copy,
@@ -319,7 +335,7 @@ def main(argv=None) -> int:
     p.add_argument("config", help="project config, e.g. projects/oiio.toml")
     p.set_defaults(func=cmd_people)
 
-    p = sub.add_parser("themes", help="list, rename, merge, or delete themes")
+    p = sub.add_parser("themes", help="list, rename, merge, delete, or reset themes")
     p.add_argument("config", help="project config, e.g. projects/oiio.toml")
     p.set_defaults(func=cmd_themes)
     actions = p.add_subparsers(dest="action", required=True)
@@ -333,6 +349,10 @@ def main(argv=None) -> int:
     a.add_argument("into")
     a = actions.add_parser("delete", help="remove a theme and block it")
     a.add_argument("name")
+    a = actions.add_parser(
+        "reset", help="clear all themes and tags (deleted themes stay blocked)"
+    )
+    a.add_argument("--yes", action="store_true", help="really clear them")
 
     p = sub.add_parser("tag", help="tag documents with themes using the local LLM")
     p.add_argument("config", help="project config, e.g. projects/oiio.toml")

@@ -269,6 +269,34 @@ def delete(conn: sqlite3.Connection, name: str) -> None:
         )
 
 
+@dataclass
+class ResetCounts:
+    themes: int  # including merged-away ones
+    tags: int  # document-theme pairs
+    tagged_docs: int  # documents that will be tagged again
+
+
+def reset_counts(conn: sqlite3.Connection) -> ResetCounts:
+    def count(table: str) -> int:
+        return conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+
+    return ResetCounts(count("themes"), count("doc_themes"), count("doc_tagging"))
+
+
+def reset(conn: sqlite3.Connection) -> ResetCounts:
+    """Clear all themes and tags so the next run re-tags everything.
+
+    Deleted themes stay blocked.
+    """
+    counts = reset_counts(conn)
+    with conn:
+        conn.execute("DELETE FROM doc_themes")
+        conn.execute("DELETE FROM doc_tagging")
+        conn.execute("UPDATE themes SET merged_into = NULL")
+        conn.execute("DELETE FROM themes")
+    return counts
+
+
 def is_retired(conn: sqlite3.Connection, theme_id: str) -> bool:
     """True if a theme was merged away or deleted."""
     row = conn.execute(

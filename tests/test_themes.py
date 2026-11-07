@@ -204,6 +204,29 @@ class DeleteTest(ThemesTestCase):
             themes.delete(self.conn, "Nope")
 
 
+class ResetTest(ThemesTestCase):
+    def test_clears_themes_and_tags_but_keeps_blocklist(self):
+        registry = Registry(self.conn)
+        a, b = registry.create("Fuzzing"), registry.create("Fuzz testing")
+        self.tag(a, "pr#1", "pr#2")
+        themes.merge(self.conn, "Fuzz testing", "Fuzzing")
+        themes.delete(self.conn, "Fuzzing")
+        self.assertTrue(themes.is_retired(self.conn, b))
+        with self.conn:
+            self.conn.execute(
+                "INSERT INTO doc_tagging VALUES ('pr#1', 'h', 0), ('pr#2', 'h', 0)"
+            )
+        self.tag(registry.create("Build system"), "pr#3")
+
+        counts = themes.reset(self.conn)
+        self.assertEqual((counts.themes, counts.tags, counts.tagged_docs), (3, 1, 2))
+        self.assertEqual(themes.reset_counts(self.conn), themes.ResetCounts(0, 0, 0))
+        reloaded = Registry(self.conn)
+        self.assertEqual(len(reloaded), 0)
+        self.assertTrue(reloaded.is_blocked("Fuzzing"))
+        self.assertTrue(reloaded.is_blocked("Fuzz testing"))
+
+
 class SummaryTest(ThemesTestCase):
     def test_counts_and_date_range(self):
         registry = Registry(self.conn)
