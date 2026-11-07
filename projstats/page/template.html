@@ -85,7 +85,11 @@
   header, #filter-inner, #views, #check-panel, #about { max-width: 1440px; margin: 0 auto; padding: 0 16px; }
   header { padding-top: 20px; display: flex; gap: 16px; align-items: baseline; flex-wrap: wrap; }
   header h1 { font-size: 20px; font-weight: 600; margin: 0; }
-  #theme { margin-left: auto; }
+  #theme {
+    margin-left: auto; align-self: center; display: grid; place-items: center;
+    width: 34px; height: 34px; padding: 0; border-radius: 999px; color: var(--text-secondary);
+  }
+  #theme:hover { color: var(--text-primary); }
   #about { color: var(--text-secondary); font-size: 13px; padding-top: 14px; padding-bottom: 40px; border-top: 1px solid var(--grid); }
   #about a { color: inherit; }
   button, select, input {
@@ -239,7 +243,7 @@
 <body>
 <header>
   <h1 id="title">__TITLE__</h1>
-  <button id="theme" type="button" aria-label="Color theme">Theme: auto</button>
+  <button id="theme" type="button"></button>
 </header>
 <div id="check-panel"></div>
 <div id="filters" role="region" aria-label="Filters">

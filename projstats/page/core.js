@@ -383,12 +383,28 @@ const PS = (() => {
 
   // ---- start ----------------------------------------------------------------------
 
+  // Color theme: one button showing the current choice's icon; each click
+  // moves to the next of system (auto), light, and dark.
   const THEMES = ["auto", "light", "dark"];
+  const THEME_ICONS = {
+    light: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4' +
+      'M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+    auto: '<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>',
+    dark: '<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/>',
+  };
+  const THEME_NAMES = {light: "Light", auto: "System", dark: "Dark"};
   function applyTheme() {
     const theme = THEMES.includes(state.colors) ? state.colors : "auto";
     if (theme === "auto") delete document.documentElement.dataset.theme;
     else document.documentElement.dataset.theme = theme;
-    document.getElementById("theme").textContent = `Theme: ${theme}`;
+    const next = THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length];
+    const button = document.getElementById("theme");
+    const label = `${THEME_NAMES[theme]} theme (click for ${THEME_NAMES[next].toLowerCase()})`;
+    button.setAttribute("aria-label", label);
+    button.title = label;
+    // Fixed icon markup from THEME_ICONS, never data.
+    button.innerHTML = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" ` +
+      `stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${THEME_ICONS[theme]}</svg>`;
   }
 
   function start() {
@@ -400,9 +416,9 @@ const PS = (() => {
     about.title = `Page built ${longDate(dateToDay(p.generated))}`;
     about.append(`Data from `, el("a", {href: `https://github.com/${p.github}`}, p.label || p.github),
       `, through ${p.data_end === null ? "–" : longDate(p.data_end)}`);
-    const themeButton = document.getElementById("theme");
-    themeButton.onclick = () => {
-      const next = THEMES[(THEMES.indexOf(state.colors || "auto") + 1) % THEMES.length];
+    document.getElementById("theme").onclick = () => {
+      const theme = THEMES.includes(state.colors) ? state.colors : "auto";
+      const next = THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length];
       state.colors = next === "auto" ? undefined : next;
       applyTheme();
       writeHash();
