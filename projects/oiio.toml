@@ -4,3 +4,8 @@ github = "AcademySoftwareFoundation/OpenImageIO"
 [people]
 # Extra names, emails, or logins to drop. Logins ending in "[bot]" are always dropped.
 bots = ["Copilot"]
+
+[retention]
+return_gap_days = 365   # "returning" = back after at least this long away
+core_quarters = 12      # core: active in >= 12 distinct calendar quarters
+regular_quarters = 4    # regular: 4..11; casual: fewer, with >1 activity; one-time: 1 activity

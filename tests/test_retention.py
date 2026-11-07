@@ -1,0 +1,208 @@
+"""Retention math on a hand-counted fixture (all times UTC).
+
+  A  2020-01-15, 2020-02-10, 2021-06-01   gap of 477 days -> returns in 2021
+  B  2020-03-01                           one-time
+  C  2020-12-31 23:00, 2021-01-02 00:00   crosses a year boundary
+  D  2019-06-01, 2022-03-01               returns in 2022; data ends here
+
+Yearly:
+  2019  active 1: D new
+  2020  active 3: A, B, C new                   activity 4
+  2021  active 2: A returning, C continuing     activity 2
+  2022  active 1: D returning (partial)
+Last seen: B in 2020 (shown: 2020 ended 424 days before the data end);
+A and C in 2021 and D in 2022 are too recent, so None.
+"""
+
+import unittest
+from datetime import UTC, datetime
+
+from projstats import identity, storage
+from projstats.config import RetentionConfig
+from projstats.retention import (
+    Activity,
+    cohorts,
+    load_commit_activity,
+    period_bounds,
+    period_counts,
+    period_key,
+    period_label,
+    person_stats,
+)
+
+CFG = RetentionConfig(return_gap_days=365, core_quarters=12, regular_quarters=4)
+
+
+def ts(text: str) -> int:
+    return int(datetime.fromisoformat(text).replace(tzinfo=UTC).timestamp())
+
+
+FIXTURE = [
+    ("A", "2020-01-15"),
+    ("A", "2020-02-10"),
+    ("A", "2021-06-01"),
+    ("B", "2020-03-01"),
+    ("C", "2020-12-31T23:00"),
+    ("C", "2021-01-02"),
+    ("D", "2019-06-01"),
+    ("D", "2022-03-01"),
+]
+ACTIVITY = [Activity(p, ts(t), "commit", f"{p}{i}") for i, (p, t) in enumerate(FIXTURE)]
+
+
+def table(period: str):
+    """{label: (active, new, returning, continuing, last_seen, activity)}"""
+    return {
+        r.label: (r.active, r.new, r.returning, r.continuing, r.last_seen, r.activity)
+        for r in period_counts(ACTIVITY, period, 365)
+    }
+
+
+class PeriodHelpersTest(unittest.TestCase):
+    def test_keys_labels_bounds(self):
+        t = ts("2021-05-20")
+        self.assertEqual(period_label(period_key(t, "month"), "month"), "2021-05")
+        self.assertEqual(period_label(period_key(t, "quarter"), "quarter"), "2021Q2")
+        self.assertEqual(period_label(period_key(t, "year"), "year"), "2021")
+        q = period_key(t, "quarter")
+        self.assertEqual(
+            period_bounds(q, "quarter"), (ts("2021-04-01"), ts("2021-07-01"))
+        )
+        self.assertEqual(
+            period_key(ts("2020-12-31T23:59"), "quarter") + 1,
+            period_key(ts("2021-01-01"), "quarter"),
+        )
+
+    def test_bounds_wrap_the_year(self):
+        q4 = period_key(ts("2020-11-01"), "quarter")
+        self.assertEqual(period_bounds(q4, "quarter")[1], ts("2021-01-01"))
+        dec = period_key(ts("2020-12-05"), "month")
+        self.assertEqual(period_bounds(dec, "month")[1], ts("2021-01-01"))
+
+
+class PeriodCountsTest(unittest.TestCase):
+    def test_yearly(self):
+        self.assertEqual(
+            table("year"),
+            {
+                "2019": (1, 1, 0, 0, 0, 1),
+                "2020": (3, 3, 0, 0, 1, 4),
+                "2021": (2, 0, 1, 1, None, 2),
+                "2022": (1, 0, 1, 0, None, 1),
+            },
+        )
+
+    def test_quarterly(self):
+        rows = table("quarter")
+        self.assertEqual(len(rows), 12)  # 2019Q2 .. 2022Q1, empty ones included
+        self.assertEqual(rows["2019Q2"], (1, 1, 0, 0, 0, 1))
+        self.assertEqual(rows["2019Q3"], (0, 0, 0, 0, 0, 0))
+        self.assertEqual(rows["2020Q1"], (2, 2, 0, 0, 1, 3))
+        self.assertEqual(rows["2020Q4"], (1, 1, 0, 0, 0, 1))
+        self.assertEqual(rows["2021Q1"], (1, 0, 0, 1, None, 1))  # ends 334d before
+        self.assertEqual(rows["2021Q2"], (1, 0, 1, 0, None, 1))  # ends < 365d before
+        self.assertEqual(rows["2022Q1"], (1, 0, 1, 0, None, 1))
+
+    def test_monthly(self):
+        rows = table("month")
+        self.assertEqual(rows["2020-01"][:4], (1, 1, 0, 0))
+        self.assertEqual(rows["2020-02"][:4], (1, 0, 0, 1))  # A, 26 days later
+        self.assertEqual(rows["2020-03"][:4], (1, 1, 0, 0))
+        self.assertEqual(rows["2020-12"][:4], (1, 1, 0, 0))
+        self.assertEqual(rows["2021-01"][:4], (1, 0, 0, 1))  # C, a day later
+        self.assertEqual(rows["2021-06"][:4], (1, 0, 1, 0))
+        self.assertEqual(rows["2022-03"][:4], (1, 0, 1, 0))
+
+    def test_only_last_period_is_partial(self):
+        rows = period_counts(ACTIVITY, "year", 365)
+        self.assertEqual([r.partial for r in rows], [False, False, False, True])
+
+    def test_empty(self):
+        self.assertEqual(period_counts([], "year", 365), [])
+
+
+class PersonStatsTest(unittest.TestCase):
+    def test_fixture_people(self):
+        stats = {s.person: s for s in person_stats(ACTIVITY, CFG)}
+        a = stats["A"]
+        self.assertEqual(
+            (a.activity, a.months, a.quarters, a.years), (3, 3, 2, (2020, 2021))
+        )
+        self.assertEqual((a.longest_gap_days, a.returns, a.segment), (477, 1, "casual"))
+        self.assertEqual(stats["B"].segment, "one-time")
+        self.assertEqual(stats["C"].longest_gap_days, 1)
+        self.assertEqual(stats["C"].returns, 0)
+        self.assertEqual(stats["D"].returns, 1)
+        # Data ends 2022-03-01: A was 273 days earlier, C 423 days, D on that day.
+        self.assertEqual(
+            {p: s.current for p, s in stats.items()},
+            {"A": True, "B": False, "C": False, "D": True},
+        )
+
+    def test_segments(self):
+        def quarters(person, n):
+            return [
+                Activity(
+                    person, ts(f"{2000 + q // 4}-{q % 4 * 3 + 1:02d}-01"), "commit", ""
+                )
+                for q in range(n)
+            ]
+
+        stats = person_stats(
+            quarters("core", 12) + quarters("reg", 4) + quarters("cas", 3), CFG
+        )
+        self.assertEqual(
+            {s.person: s.segment for s in stats},
+            {"core": "core", "reg": "regular", "cas": "casual"},
+        )
+
+
+class CohortsTest(unittest.TestCase):
+    def test_fixture_cohorts(self):
+        stats = person_stats(ACTIVITY, CFG)
+        result = {c.year: c for c in cohorts(stats, ts("2022-03-01"))}
+        self.assertEqual(sorted(result), [2019, 2020])
+        c19, c20 = result[2019], result[2020]
+        self.assertEqual((c19.size, c19.one_time), (1, 0))
+        self.assertEqual(c19.active_after, {1: 0, 2: 0, 5: None})  # 2024 not complete
+        self.assertEqual((c20.size, c20.one_time), (3, 1))
+        self.assertEqual(c20.active_after, {1: 2, 2: None, 5: None})
+
+
+class LoadCommitActivityTest(unittest.TestCase):
+    def test_coauthors_credited_once_per_person_and_bots_skipped(self):
+        conn = storage.connect(":memory:")
+        self.addCleanup(conn.close)
+        commits = [
+            ("c1", 100, "Ann Lee", "ann@a.example"),
+            ("c2", 200, "Ann Lee", "ann@b.example"),
+            ("c3", 300, "Copilot", "9+copilot@users.noreply.github.com"),
+        ]
+        conn.executemany(
+            "INSERT INTO commits VALUES (?, ?, ?, ?, ?, ?, ?, '', '')",
+            [(sha, t, t, n, e, n, e) for sha, t, n, e in commits],
+        )
+        coauthors = [
+            ("c2", "Ann Lee", "ann@a.example"),  # same person as the author
+            ("c2", "Bo Ma", "bo@b.example"),
+            ("c3", "Bo Ma", "bo@b.example"),
+        ]
+        conn.executemany(
+            "INSERT INTO commit_coauthors VALUES (?, ?, ?, ?, ?)",
+            [(sha, n, e, n, e) for sha, n, e in coauthors],
+        )
+        people = identity.group_people(identity.load_identities(conn), ["Copilot"])
+        got = [(a.person, a.item) for a in load_commit_activity(conn, people)]
+        self.assertEqual(
+            got,
+            [
+                ("ann@a.example", "c1"),
+                ("ann@a.example", "c2"),
+                ("bo@b.example", "c2"),
+                ("bo@b.example", "c3"),
+            ],
+        )
+
+
+if __name__ == "__main__":
+    unittest.main()
