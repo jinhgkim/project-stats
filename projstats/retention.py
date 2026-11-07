@@ -7,8 +7,9 @@ answer at every period size.
 """
 
 import sqlite3
+from bisect import bisect_right
 from collections import Counter, defaultdict
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from itertools import groupby
@@ -34,8 +35,8 @@ class Activity:
 class PeriodRow:
     key: int
     label: str
-    start: int
-    end: int  # exclusive
+    start: int | None  # None: open-ended (first release cycle)
+    end: int | None  # exclusive; None: open-ended (cycle in progress)
     active: int = 0
     new: int = 0
     returning: int = 0
@@ -121,6 +122,17 @@ def load_activity(
     return out
 
 
+def exclude_items(
+    activity: list[Activity], numbers: Iterable[int], links: dict[str, str]
+) -> list[Activity]:
+    """Drop activity on the given PR or issue numbers, including commits that
+    `links` (sha -> "pr#N", from documents.commit_links) ties to those PRs."""
+    refs = {f"{kind}#{n}" for n in numbers for kind in ("pr", "issue")}
+    if not refs:
+        return activity
+    return [a for a in activity if links.get(a.item, a.item) not in refs]
+
+
 def _month_index(ts: int) -> int:
     d = datetime.fromtimestamp(ts, UTC)
     return d.year * 12 + d.month - 1
@@ -156,25 +168,47 @@ def _by_person(activity: list[Activity]) -> dict[str, list[int]]:
     return {p: sorted(ts) for p, ts in times.items()}
 
 
+def _scheme(period) -> tuple[Callable, Callable, Callable]:
+    """(key of a timestamp, bounds of a key, label of a key) for a period."""
+    if isinstance(period, str):
+        return (
+            lambda ts: period_key(ts, period),
+            lambda k: period_bounds(k, period),
+            lambda k: period_label(k, period),
+        )
+    starts = [c.start for c in period[1:]]
+    return (
+        lambda ts: bisect_right(starts, ts),
+        lambda k: (period[k].start, period[k].end),
+        lambda k: period[k].label,
+    )
+
+
 def period_counts(
-    activity: list[Activity], period: str, return_gap_days: int
+    activity: list[Activity], period: str | Sequence, return_gap_days: int
 ) -> list[PeriodRow]:
-    """New / returning / continuing / last-seen people for every period."""
+    """New / returning / continuing / last-seen people for every period.
+
+    `period` is "month", "quarter", "year", or a list of cycles with label,
+    start, and end (start None for the first, end None for the last), such as
+    documents.release_periods().
+    """
     if not activity:
         return []
+    key_of, bounds_of, label_of = _scheme(period)
     gap = return_gap_days * DAY
     data_end = max(a.ts for a in activity)
-    keys = [period_key(a.ts, period) for a in activity]
+    keys = [key_of(a.ts) for a in activity]
     rows = {}
     for key in range(min(keys), max(keys) + 1):
-        start, end = period_bounds(key, period)
-        rows[key] = PeriodRow(key, period_label(key, period), start, end)
+        start, end = bounds_of(key)
+        rows[key] = PeriodRow(key, label_of(key), start, end)
     rows[max(keys)].partial = True
 
     last_seen = Counter()
     for times in _by_person(activity).values():
         prev = None
-        for key, group in groupby(times, key=lambda t: period_key(t, period)):
+        for key, group in groupby(times, key=key_of):
             group = list(group)
             row = rows[key]
             row.active += 1
@@ -186,10 +220,10 @@ def period_counts(
             else:
                 row.continuing += 1
             prev = group[-1]
-        last_seen[period_key(times[-1], period)] += 1
+        last_seen[key_of(times[-1])] += 1
 
     for row in rows.values():
-        if data_end - row.end >= gap:
+        if row.end is not None and data_end - row.end >= gap:
             row.last_seen = last_seen[row.key]
     return list(rows.values())
 

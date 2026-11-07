@@ -16,6 +16,7 @@ from projstats import (
     github,
     gitlog,
     identity,
+    page,
     releases,
     retention,
     storage,
@@ -96,6 +97,14 @@ def _load_people(conn, cfg: config.Config) -> identity.People:
     return identity.load_people(conn, cfg.people.bots)
 
 
+def _load_activity(conn, cfg: config.Config, people, kinds=None):
+    return retention.exclude_items(
+        retention.load_activity(conn, people, kinds),
+        cfg.activity.exclude_items,
+        documents.commit_links(conn),
+    )
+
+
 def cmd_people(args) -> int:
     cfg = config.load(args.config)
     conn = storage.connect(cfg.db_path)
@@ -141,7 +150,7 @@ def _themes_trends(conn, cfg: config.Config, args) -> int:
     names = {p.key: p.name for p in people.people}
     r = trends.analyze(
         docs,
-        retention.load_activity(conn, people),
+        _load_activity(conn, cfg, people),
         periods,
         trends.load_doc_themes(conn),
         trends.load_tagged(conn),
@@ -356,6 +365,21 @@ def cmd_export(args) -> int:
     return 0
 
 
+def cmd_page(args) -> int:
+    cfg = config.load(args.config)
+    conn = storage.connect(cfg.db_path)
+    data = export.build(conn, cfg)
+    title = f"{cfg.repo.github.split('/')[-1]} contributors"
+    out = page.write(data, title, args.out or Path(cfg.data_dir) / f"{cfg.slug}.html")
+    size = out.stat().st_size / 1024
+    print(
+        f"page: {out} ({size:.0f} KB); add #check to the address to compare with Python"
+    )
+    if args.open:
+        subprocess.run(["open", str(out)], check=False)
+    return 0
+
+
 def cmd_summary(args) -> int:
     """Temporary text report, to check the retention math until the page exists."""
     cfg = config.load(args.config)
@@ -364,7 +388,7 @@ def cmd_summary(args) -> int:
     people = _load_people(conn, cfg)
     names = {p.key: p.name for p in people.people}
     kinds = args.kinds.split(",") if args.kinds else list(retention.KINDS)
-    activity = retention.load_activity(conn, people, kinds)
+    activity = _load_activity(conn, cfg, people, kinds)
     if not activity:
         print("error: no activity yet; run fetch first", file=sys.stderr)
         return 1
@@ -503,6 +527,12 @@ def main(argv=None) -> int:
     p.add_argument("config", help="project config, e.g. projects/oiio.toml")
     p.add_argument("--out", help="output file (default: data/<owner>__<repo>.json)")
     p.set_defaults(func=cmd_export)
+
+    p = sub.add_parser("page", help="write the web page (one self-contained HTML file)")
+    p.add_argument("config", help="project config, e.g. projects/oiio.toml")
+    p.add_argument("--out", help="output file (default: data/<owner>__<repo>.html)")
+    p.add_argument("--open", action="store_true", help="open it in your browser")
+    p.set_defaults(func=cmd_page)
 
     p = sub.add_parser("summary", help="temporary text report of retention numbers")
     p.add_argument("config", help="project config, e.g. projects/oiio.toml")

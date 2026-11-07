@@ -18,6 +18,12 @@ class PeopleConfig:
 
 
 @dataclass
+class ActivityConfig:
+    # PR or issue numbers left out of every count, with commits linked to those PRs.
+    exclude_items: list[int] = field(default_factory=list)
+
+
+@dataclass
 class ReleasesConfig:
     # Fully matches final release tags; captures major, minor, patch[, fourth].
     tag_pattern: str = r"^v?(\d+)\.(\d+)\.(\d+)$"
@@ -54,6 +60,7 @@ class Config:
     data_dir: str = "data"
     repo: RepoConfig = field(default_factory=RepoConfig)
     people: PeopleConfig = field(default_factory=PeopleConfig)
+    activity: ActivityConfig = field(default_factory=ActivityConfig)
     retention: RetentionConfig = field(default_factory=RetentionConfig)
     releases: ReleasesConfig = field(default_factory=ReleasesConfig)
     ollama: OllamaConfig = field(default_factory=OllamaConfig)
@@ -88,6 +95,7 @@ def load(path: str | Path) -> Config:
     data = tomllib.loads(Path(path).read_text(encoding="utf-8"))
     repo = _build(RepoConfig, data.pop("repo", {}), "[repo]")
     people = _build(PeopleConfig, data.pop("people", {}), "[people]")
+    activity = _build(ActivityConfig, data.pop("activity", {}), "[activity]")
     retention = _build(RetentionConfig, data.pop("retention", {}), "[retention]")
     releases = _build(ReleasesConfig, data.pop("releases", {}), "[releases]")
     ollama = _build(OllamaConfig, data.pop("ollama", {}), "[ollama]")
@@ -98,12 +106,16 @@ def load(path: str | Path) -> Config:
         "releases": releases,
         "repo": repo,
         "people": people,
+        "activity": activity,
         "retention": retention,
     }
     cfg = _build(Config, {**data, **sections}, "top-level")
     owner, _, name = repo.github.partition("/")
     if not owner or not name or "/" in name:
         raise ValueError(f'[repo] github must be "owner/name", got {repo.github!r}')
+    ex = activity.exclude_items
+    if not isinstance(ex, list) or not all(type(n) is int and n > 0 for n in ex):
+        raise ValueError("[activity] exclude_items must be PR or issue numbers")
     r = retention
     if not 0 < r.regular_quarters < r.core_quarters or r.return_gap_days <= 0:
         raise ValueError(

@@ -15,6 +15,9 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools]
 packages = ["projstats"]
 
+[tool.setuptools.package-data]
+projstats = ["page/*.html", "page/*.js", "page/filters/*.js", "page/views/*.js"]
+
 [tool.ruff]
 line-length = 88
 target-version = "py311"

@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>__TITLE__</title>
+<style>
+  :root {
+    color-scheme: light;
+    --page: #f9f9f7;
+    --surface-1: #fcfcfb;
+    --text-primary: #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted: #898781;
+    --grid: #e1e0d9;
+    --axis: #c3c2b7;
+    --border: rgba(11, 11, 11, 0.10);
+    --wash: rgba(11, 11, 11, 0.05);
+    --series-1: #2a78d6;
+    --series-2: #eb6834;
+    --series-3: #1baf7a;
+    --series-4: #eda100;
+    --critical: #d03b3b;
+    --good: #0ca30c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --page: #0d0d0d;
+      --surface-1: #1a1a19;
+      --text-primary: #f0efec;
+      --text-secondary: #c3c2b7;
+      --text-muted: #898781;
+      --grid: #2c2c2a;
+      --axis: #383835;
+      --border: rgba(255, 255, 255, 0.10);
+      --wash: rgba(255, 255, 255, 0.06);
+      --series-1: #3987e5;
+      --series-2: #d95926;
+      --series-3: #199e70;
+      --series-4: #c98500;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --page: #0d0d0d;
+    --surface-1: #1a1a19;
+    --text-primary: #f0efec;
+    --text-secondary: #c3c2b7;
+    --text-muted: #898781;
+    --grid: #2c2c2a;
+    --axis: #383835;
+    --border: rgba(255, 255, 255, 0.10);
+    --wash: rgba(255, 255, 255, 0.06);
+    --series-1: #3987e5;
+    --series-2: #d95926;
+    --series-3: #199e70;
+    --series-4: #c98500;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body {
+    margin: 0;
+    background: var(--page);
+    color: var(--text-primary);
+    font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  header, #filters, #views, #check-panel { max-width: 1200px; margin: 0 auto; padding: 0 16px; }
+  header { padding-top: 20px; display: flex; gap: 16px; align-items: baseline; flex-wrap: wrap; }
+  header h1 { font-size: 20px; font-weight: 600; margin: 0; }
+  header .meta { color: var(--text-secondary); flex: 1; min-width: 200px; overflow-wrap: anywhere; }
+  header .meta a { color: inherit; }
+  button, select, input {
+    font: inherit; color: var(--text-primary); background: var(--surface-1);
+    border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px;
+  }
+  button { cursor: pointer; }
+  button:hover { background: var(--wash); }
+  button[aria-pressed="true"] { border-color: var(--text-secondary); font-weight: 600; }
+  /* Toggles reserve their bold width (data-label repeats the text), so pressing one doesn't resize it. */
+  button[data-label] { display: inline-grid; justify-items: center; }
+  button[data-label]::after { content: attr(data-label); font-weight: 600; height: 0; overflow: hidden; visibility: hidden; }
+  button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--series-1); outline-offset: 1px; }
+  #filters { display: flex; flex-wrap: wrap; gap: 16px 24px; align-items: center; padding-top: 16px; padding-bottom: 8px; }
+  #filter-dates { flex-basis: 100%; }
+  .filter { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .filter > .label { color: var(--text-secondary); margin-right: 2px; }
+  #views { display: grid; gap: 16px; padding-top: 8px; padding-bottom: 32px; }
+  figure.view {
+    margin: 0; background: var(--surface-1); border: 1px solid var(--border);
+    border-radius: 10px; padding: 16px; min-width: 0;
+  }
+  figure.view .head { display: flex; gap: 12px; align-items: flex-start; flex-wrap: wrap; }
+  figure.view h2 { font-size: 16px; font-weight: 600; margin: 0; flex: 1; min-width: 200px; }
+  figure.view .subtitle { color: var(--text-secondary); margin: 4px 0 8px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 16px; color: var(--text-secondary); margin: 4px 0 8px; }
+  .legend .key { display: inline-flex; align-items: center; gap: 6px; }
+  .legend svg { display: block; }
+  .plot { position: relative; width: 100%; }
+  .plot svg { display: block; width: 100%; overflow: visible; }
+  .plot text { fill: var(--text-muted); font-size: 11px; }
+  .plot .grid line { stroke: var(--grid); }
+  .plot .axis path, .plot .axis line { stroke: var(--axis); }
+  .plot .label { fill: var(--text-secondary); font-size: 12px; }
+  .plot .halo { paint-order: stroke; stroke: var(--surface-1); stroke-width: 3px; stroke-linejoin: round; }
+  .plot .marker line { stroke: var(--text-muted); }
+  .plot .hit { fill: transparent; outline: none; }
+  .plot .hit:hover, .plot .hit:focus { fill: var(--wash); }
+  .plot .hit:focus-visible { stroke: var(--series-1); stroke-width: 2px; }
+  .empty { color: var(--text-secondary); padding: 24px 0; }
+  table.data { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+  table.data th, table.data td { text-align: right; padding: 4px 8px; border-bottom: 1px solid var(--grid); }
+  table.data th:first-child, table.data td:first-child { text-align: left; }
+  table.data th { color: var(--text-secondary); font-weight: 600; position: sticky; top: 0; background: var(--surface-1); }
+  .table-wrap { max-height: 420px; overflow: auto; }
+  #tooltip {
+    position: fixed; pointer-events: none; z-index: 10; display: none;
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px;
+    padding: 8px 10px; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12); min-width: 160px;
+  }
+  #tooltip .title { color: var(--text-secondary); margin-bottom: 4px; }
+  #tooltip .row { display: flex; align-items: center; gap: 8px; }
+  #tooltip .row .value { font-weight: 600; min-width: 3ch; text-align: right; font-variant-numeric: tabular-nums; }
+  #tooltip .row .name { color: var(--text-secondary); }
+  #check-panel:empty { display: none; }
+  #check-panel .box { margin-top: 12px; border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; background: var(--surface-1); }
+  #check-panel .ok { color: var(--good); font-weight: 600; }
+  #check-panel .bad { color: var(--critical); font-weight: 600; }
+  #check-panel pre { white-space: pre-wrap; margin: 6px 0 0; color: var(--text-secondary); }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title">__TITLE__</h1>
+  <div class="meta" id="meta"></div>
+  <button id="theme" type="button" aria-label="Color theme">Theme: auto</button>
+</header>
+<div id="check-panel"></div>
+<div id="filters" role="toolbar" aria-label="Filters"></div>
+<main id="views"></main>
+<div id="tooltip" role="status"></div>
+<script id="data" type="application/json">__DATA__</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+__SCRIPTS__
+<script>PS.start();</script>
+</body>
+</html>

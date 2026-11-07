@@ -5,6 +5,12 @@ github = "AcademySoftwareFoundation/OpenImageIO"
 # Extra names, emails, or logins to drop. Logins ending in "[bot]" are always dropped.
 bots = ["Copilot"]
 
+[activity]
+# PR or issue numbers left out of every count, along with commits linked to those PRs.
+exclude_items = [
+  3905,  # "Relicense code under Apache 2.0": 78 people commented in July 2023
+]
+
 [retention]
 return_gap_days = 365   # "returning" = back after at least this long away
 core_quarters = 12      # core: active in >= 12 distinct calendar quarters

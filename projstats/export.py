@@ -21,10 +21,12 @@ VERSION = 1
 DAY = 86_400
 EMAIL = re.compile(r"[\w.+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}\b")
 # (kinds or None for all, period) combinations checked by the page's #check.
+# "release" is release cycles, and is skipped when there are no releases.
 REFERENCE_PERIOD_COUNTS = [
     (None, "year"),
     (["commit"], "quarter"),
     (["review"], "month"),
+    (["commit", "pr", "issue"], "release"),
 ]
 REFERENCE_SEGMENTS = [None, ["commit"]]
 
@@ -52,7 +54,9 @@ def build(conn: sqlite3.Connection, cfg: Config, generated: str | None = None) -
     docs = sorted(documents.load_documents(conn), key=lambda d: (d.ts, d.ref))
     doc_index = {d.ref: i for i, d in enumerate(docs)}
     links = documents.commit_links(conn)
-    activity = retention.load_activity(conn, people)
+    activity = retention.exclude_items(
+        retention.load_activity(conn, people), cfg.activity.exclude_items, links
+    )
     kinds = list(retention.KINDS)
     kind_index = {k: i for i, k in enumerate(kinds)}
     rels = releases.load_releases(conn)
@@ -79,6 +83,7 @@ def build(conn: sqlite3.Connection, cfg: Config, generated: str | None = None) -
             "github": cfg.repo.github,
             "generated": generated or datetime.now(UTC).strftime("%Y-%m-%d"),
             "data_end": day(max(a.ts for a in activity)) if activity else None,
+            "excluded_items": sorted(cfg.activity.exclude_items),
         },
         "settings": dataclasses.asdict(cfg.retention),
         "kinds": kinds,
@@ -124,9 +129,15 @@ def reference(cfg, people, docs, activity, rels, links, conn) -> dict:
     def subset(kinds):
         return by_day if kinds is None else [a for a in by_day if a.kind in kinds]
 
+    day_rels = [
+        dataclasses.replace(x, released_at=_day_start(x.released_at)) for x in rels
+    ]
     period_counts = []
     for kinds, period in REFERENCE_PERIOD_COUNTS:
-        rows = retention.period_counts(subset(kinds), period, r.return_gap_days)
+        if period == "release" and not rels:
+            continue
+        periods = documents.release_periods(day_rels) if period == "release" else period
+        rows = retention.period_counts(subset(kinds), periods, r.return_gap_days)
         period_counts.append(
             {
                 "kinds": kinds,
@@ -175,9 +186,6 @@ def reference(cfg, people, docs, activity, rels, links, conn) -> dict:
 
     theme_trends = None
     if rels:
-        day_rels = [
-            dataclasses.replace(x, released_at=_day_start(x.released_at)) for x in rels
-        ]
         day_docs = [dataclasses.replace(d, ts=_day_start(d.ts)) for d in docs]
         report = trends.analyze(
             day_docs,

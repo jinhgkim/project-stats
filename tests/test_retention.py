@@ -14,14 +14,18 @@ Last seen: B in 2020 (shown: 2020 ended 424 days before the data end);
 A and C in 2021 and D in 2022 are too recent, so None.
 """
 
+import tempfile
 import unittest
 from datetime import UTC, datetime
+from pathlib import Path
 
-from projstats import identity, storage
+from projstats import config, identity, storage
 from projstats.config import RetentionConfig
+from projstats.documents import Period
 from projstats.retention import (
     Activity,
     cohorts,
+    exclude_items,
     load_activity,
     load_commit_activity,
     period_bounds,
@@ -121,6 +125,71 @@ class PeriodCountsTest(unittest.TestCase):
 
     def test_empty(self):
         self.assertEqual(period_counts([], "year", 365), [])
+
+    def test_release_cycles(self):
+        # B's activity falls on the 1.1 release day, so it counts in the next cycle.
+        cycles = [
+            Period("1.0 cycle", None, ts("2020-03-01")),
+            Period("1.1 cycle", ts("2020-03-01"), ts("2021-01-01")),
+            Period("after 1.1", ts("2021-01-01"), None, partial=True),
+        ]
+        rows = period_counts(ACTIVITY, cycles, 365)
+        self.assertEqual(
+            [
+                (
+                    r.label,
+                    r.active,
+                    r.new,
+                    r.returning,
+                    r.continuing,
+                    r.last_seen,
+                    r.activity,
+                    r.partial,
+                )
+                for r in rows
+            ],
+            [
+                ("1.0 cycle", 2, 2, 0, 0, 0, 3, False),  # D, A
+                ("1.1 cycle", 2, 2, 0, 0, 1, 2, False),  # B, C; B last seen
+                ("after 1.1", 3, 0, 2, 1, None, 3, True),  # C continues; A, D return
+            ],
+        )
+        self.assertEqual((rows[0].start, rows[2].end), (None, None))
+
+
+class ExcludeItemsTest(unittest.TestCase):
+    def test_drops_the_item_and_its_linked_commits(self):
+        activity = [
+            Activity("A", 1, "commit", "c1"),
+            Activity("A", 2, "commit", "c2"),
+            Activity("A", 3, "pr", "pr#5"),
+            Activity("B", 4, "review", "pr#5"),
+            Activity("B", 5, "comment", "issue#6"),
+            Activity("B", 6, "issue", "issue#7"),
+        ]
+        links = {"c1": "pr#5", "c2": "pr#9"}
+        got = exclude_items(activity, [5, 7], links)
+        self.assertEqual([a.item for a in got], ["c2", "issue#6"])
+        self.assertEqual(exclude_items(activity, [], links), activity)
+
+
+class ActivityConfigTest(unittest.TestCase):
+    def write(self, text):
+        tmp = tempfile.NamedTemporaryFile("w", suffix=".toml", delete=False)
+        tmp.write('[repo]\ngithub = "o/r"\n' + text)
+        tmp.close()
+        self.addCleanup(Path(tmp.name).unlink)
+        return tmp.name
+
+    def test_reads_numbers(self):
+        cfg = config.load(self.write("[activity]\nexclude_items = [3905, 12]\n"))
+        self.assertEqual(cfg.activity.exclude_items, [3905, 12])
+        self.assertEqual(config.load(self.write("")).activity.exclude_items, [])
+
+    def test_rejects_non_numbers(self):
+        for bad in ('["pr#5"]', "[0]", "5", "[true]"):
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                config.load(self.write(f"[activity]\nexclude_items = {bad}\n"))
 
 
 class PersonStatsTest(unittest.TestCase):

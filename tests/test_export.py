@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from projstats import export, storage, themes
-from projstats.config import Config, PeopleConfig, RepoConfig
+from projstats.config import ActivityConfig, Config, PeopleConfig, RepoConfig
 from tests.github_rows import add_commit, add_commit_login, add_event, add_item
 
 
@@ -122,11 +122,24 @@ class ExportTest(unittest.TestCase):
         ref = self.data["reference"]
         self.assertEqual(
             [(r["kinds"], r["period"]) for r in ref["period_counts"]],
-            [(None, "year"), (["commit"], "quarter"), (["review"], "month")],
+            [
+                (None, "year"),
+                (["commit"], "quarter"),
+                (["review"], "month"),
+                (["commit", "pr", "issue"], "release"),
+            ],
         )
         # One year, 2020: Ann (3 commits, 1 PR) and bo (1 review, 1 issue) are new.
         self.assertEqual(
             ref["period_counts"][0]["rows"], [["2020", 2, 2, 0, 0, None, 6, True]]
+        )
+        # Release 1.0 on 2020-06-01 splits off c4 (2020-12-31), Ann's next commit.
+        self.assertEqual(
+            ref["period_counts"][3]["rows"],
+            [
+                ["1.0 cycle", 2, 2, 0, 0, None, 4, False],
+                ["after 1.0", 1, 0, 0, 1, None, 1, True],
+            ],
         )
         self.assertEqual(ref["segments"][0]["segments"], {"casual": [2, 2]})
         self.assertEqual(ref["cohorts"], [[2020, 2, 0, None, None, None]])
@@ -134,6 +147,17 @@ class ExportTest(unittest.TestCase):
         self.assertEqual(
             [p["label"] for p in ref["theme_trends"]["periods"]], ["1.0 cycle"]
         )
+
+    def test_excluded_items_leave_activity_out(self):
+        self.assertEqual(self.data["project"]["excluded_items"], [])
+        self.cfg.activity = ActivityConfig(exclude_items=[5])
+        data = export.build(self.conn, self.cfg, generated="2026-11-06")
+        a = data["activity"]
+        kinds = [data["kinds"][k] for k in a["kind"]]
+        # c2 "(#5)", the PR itself, and its review are gone.
+        self.assertEqual(kinds, ["commit", "issue", "commit"])
+        self.assertEqual(data["project"]["excluded_items"], [5])
+        self.assertEqual(data["reference"]["period_counts"][0]["rows"][0][6], 3)
 
     def test_write_reports_sizes(self):
         with tempfile.TemporaryDirectory() as tmp:
