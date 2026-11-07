@@ -1,8 +1,10 @@
 """Command line entry point: python -m projstats <command> ..."""
 
 import argparse
+import dataclasses
 import subprocess
 import sys
+import time
 from collections import Counter
 from datetime import UTC, datetime
 
@@ -15,8 +17,10 @@ from projstats import (
     releases,
     retention,
     storage,
+    tagger,
     themes,
 )
+from projstats.llm import CachedProvider, LLMError, OllamaProvider
 
 
 def cmd_fetch(args) -> int:
@@ -120,6 +124,10 @@ def cmd_people(args) -> int:
     return 0
 
 
+def _utc_date(value: str) -> int:
+    return int(datetime.strptime(value, "%Y-%m-%d").replace(tzinfo=UTC).timestamp())
+
+
 def _day(ts: int) -> str:
     return datetime.fromtimestamp(ts, UTC).strftime("%Y-%m-%d")
 
@@ -159,6 +167,99 @@ def cmd_themes(args) -> int:
         print(f"error: {e}", file=sys.stderr)
         return 1
     print(done)
+    return 0
+
+
+def _provider(cfg: config.Config) -> OllamaProvider:
+    o = cfg.ollama
+    # The token cap stops a looping model; a batch's reply is far shorter.
+    return OllamaProvider(o.host, o.model, o.timeout, o.think, 4096, context=o.context)
+
+
+def cmd_tag(args) -> int:
+    cfg = config.load(args.config)
+    conn = storage.connect(cfg.db_path)
+    docs = documents.load_documents(conn)
+    if not docs:
+        print("error: no documents yet; run fetch first", file=sys.stderr)
+        return 1
+    texts = documents.clean_documents(docs)
+    settings = cfg.themes
+    if args.batch_docs:
+        settings = dataclasses.replace(settings, batch_docs=args.batch_docs)
+    provider = _provider(cfg)
+    try:
+        if args.sample:
+            return _sample_run(conn, provider, docs, texts, settings, args.sample)
+        stats = tagger.tag_documents(
+            conn,
+            CachedProvider(provider, conn),
+            docs,
+            texts,
+            settings,
+            limit=args.limit,
+            since=_utc_date(args.since) if args.since else None,
+            force=args.force,
+            progress=lambda line: print(line, flush=True),
+            pause=args.pause,
+        )
+    except LLMError as e:
+        print(f"error: {e}", file=sys.stderr)
+        print("Progress so far is saved; rerun to continue.", file=sys.stderr)
+        return 1
+    print(
+        f"documents: {stats.tagged} tagged, {stats.unchanged} unchanged, "
+        f"{stats.failed} skipped (rerun to retry); {stats.themes_created} new "
+        f"themes, {stats.aliases_added} aliases; {stats.seconds / 60:.1f} min"
+    )
+    return 0
+
+
+def _sample_run(conn, provider, docs, texts, settings, n: int) -> int:
+    """Tag a spread-out sample against an in-memory copy; nothing is saved."""
+    periods = documents.release_periods(releases.load_releases(conn))
+    picked = tagger.sample(docs, periods, n)
+    text_of = {d.ref: t for d, t in zip(docs, texts, strict=True)}
+    t = time.monotonic()
+    provider.generate_json("warmup", "Reply in JSON.", "Say ok.", {"type": "object"})
+    print(f"model {provider.model} loaded in {time.monotonic() - t:.1f}s")
+    copy = tagger.memory_copy(conn)
+    try:
+        stats = tagger.tag_documents(
+            copy,
+            CachedProvider(provider, copy),
+            picked,
+            [text_of[d.ref] for d in picked],
+            settings,
+            force=True,
+            progress=lambda line: print(line, flush=True),
+        )
+        rows = copy.execute(
+            "SELECT d.doc_ref, t.name FROM doc_themes d JOIN themes t "
+            "ON t.id = d.theme_id ORDER BY t.name"
+        ).fetchall()
+        found = copy.execute(
+            "SELECT name, description FROM themes WHERE merged_into IS NULL "
+            "ORDER BY name"
+        ).fetchall()
+    finally:
+        copy.close()
+    by_doc: dict[str, list[str]] = {}
+    for ref, name in rows:
+        by_doc.setdefault(ref, []).append(name)
+    print(f"\n== {len(picked)} documents, {settings.batch_docs} per call (dry run)")
+    for d in picked:
+        tags = ", ".join(by_doc.get(d.ref, [])) or "-"
+        print(f"  {_day(d.ts)} {d.ref:12} {d.title[:60]}\n      -> {tags}")
+    print(f"\n== themes created ({len(found)})")
+    for name, description in found:
+        print(f"  {name}: {description}")
+    per_doc = stats.seconds / max(1, stats.tagged)
+    print(
+        f"\n== time: {stats.seconds:.0f}s for {stats.tagged} documents "
+        f"({per_doc:.2f}s each), {stats.failed} skipped; all {len(docs)} would "
+        f"take about {per_doc * len(docs) / 3600:.1f}h"
+    )
     return 0
 
 
@@ -282,6 +383,25 @@ def main(argv=None) -> int:
     a.add_argument("into")
     a = actions.add_parser("delete", help="remove a theme and block it")
     a.add_argument("name")
+
+    p = sub.add_parser("tag", help="tag documents with themes using the local LLM")
+    p.add_argument("config", help="project config, e.g. projects/oiio.toml")
+    p.add_argument("--limit", type=int, help="tag at most N documents this run")
+    p.add_argument("--since", help="only documents from YYYY-MM-DD (UTC) on")
+    p.add_argument("--force", action="store_true", help="re-tag unchanged documents")
+    p.add_argument(
+        "--pause", type=float, default=0, help="seconds to rest between calls (cooler)"
+    )
+    p.add_argument(
+        "--batch-docs", type=int, help="documents per model call (default: config)"
+    )
+    p.add_argument(
+        "--sample",
+        type=int,
+        metavar="N",
+        help="dry run: tag N documents spread across release cycles, save nothing",
+    )
+    p.set_defaults(func=cmd_tag)
 
     p = sub.add_parser("summary", help="temporary text report of retention numbers")
     p.add_argument("config", help="project config, e.g. projects/oiio.toml")

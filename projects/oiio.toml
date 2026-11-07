@@ -21,3 +21,11 @@ model = "ornith-1.5:9b"
 timeout = 600   # seconds per request
 context = 32768 # tokens the model can see per request (prompt + answer)
 think = false   # let the model reason first: slower, sometimes more careful
+
+[themes]
+about = "OpenImageIO: a C++/Python library and tools (oiiotool, iv, maketx) for reading, writing, and processing images in many formats, used in VFX and animation."
+max_per_doc = 3       # themes per document
+doc_chars = 1500      # each document's text is cut here (90% of documents are shorter)
+batch_docs = 8        # documents per model call...
+batch_chars = 8000    # ...or fewer, if their text adds up to this
+registry_limit = 300  # existing themes listed in the prompt, most used first

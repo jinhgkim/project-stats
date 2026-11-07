@@ -116,6 +116,14 @@ CREATE TABLE IF NOT EXISTS doc_themes (
 
 CREATE INDEX IF NOT EXISTS idx_doc_themes_theme ON doc_themes (theme_id);
 
+-- When each document was last tagged, and from what input (prompt version,
+-- model, and text), so reruns only tag new or changed documents.
+CREATE TABLE IF NOT EXISTS doc_tagging (
+    doc_ref    TEXT PRIMARY KEY,
+    input_hash TEXT NOT NULL,
+    tagged_at  REAL NOT NULL
+);
+
 -- Comparison keys (themes.theme_key) of themes the user deleted.
 CREATE TABLE IF NOT EXISTS blocked_themes (
     key TEXT PRIMARY KEY

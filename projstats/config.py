@@ -24,6 +24,16 @@ class ReleasesConfig:
 
 
 @dataclass
+class ThemesConfig:
+    about: str = ""  # one sentence about the project, for the tagging prompt
+    max_per_doc: int = 3  # themes per document
+    doc_chars: int = 1500  # each document's text is cut at this length
+    batch_docs: int = 8  # documents per model call...
+    batch_chars: int = 8000  # ...or fewer, if their text adds up to this
+    registry_limit: int = 300  # existing themes listed in the prompt
+
+
+@dataclass
 class OllamaConfig:
     host: str = "http://localhost:11434"
     model: str = "ornith-1.5:9b"
@@ -47,6 +57,7 @@ class Config:
     retention: RetentionConfig = field(default_factory=RetentionConfig)
     releases: ReleasesConfig = field(default_factory=ReleasesConfig)
     ollama: OllamaConfig = field(default_factory=OllamaConfig)
+    themes: ThemesConfig = field(default_factory=ThemesConfig)
 
     @property
     def slug(self) -> str:
@@ -80,7 +91,9 @@ def load(path: str | Path) -> Config:
     retention = _build(RetentionConfig, data.pop("retention", {}), "[retention]")
     releases = _build(ReleasesConfig, data.pop("releases", {}), "[releases]")
     ollama = _build(OllamaConfig, data.pop("ollama", {}), "[ollama]")
+    themes = _build(ThemesConfig, data.pop("themes", {}), "[themes]")
     sections = {
+        "themes": themes,
         "ollama": ollama,
         "releases": releases,
         "repo": repo,
@@ -97,6 +110,9 @@ def load(path: str | Path) -> Config:
             "[retention] needs return_gap_days > 0 and "
             "0 < regular_quarters < core_quarters"
         )
+    t = themes
+    if min(t.max_per_doc, t.doc_chars, t.batch_docs, t.batch_chars) < 1:
+        raise ValueError("[themes] limits must be at least 1")
     try:
         groups = re.compile(releases.tag_pattern).groups
     except re.error as e:
