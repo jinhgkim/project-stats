@@ -82,11 +82,12 @@
     color: var(--text-primary);
     font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
   }
-  header, #filter-inner, #views, #check-panel { max-width: 1440px; margin: 0 auto; padding: 0 16px; }
+  header, #filter-inner, #views, #check-panel, #about { max-width: 1440px; margin: 0 auto; padding: 0 16px; }
   header { padding-top: 20px; display: flex; gap: 16px; align-items: baseline; flex-wrap: wrap; }
   header h1 { font-size: 20px; font-weight: 600; margin: 0; }
-  header .meta { color: var(--text-secondary); flex: 1; min-width: 200px; overflow-wrap: anywhere; }
-  header .meta a { color: inherit; }
+  #theme { margin-left: auto; }
+  #about { color: var(--text-secondary); font-size: 13px; padding-top: 14px; padding-bottom: 40px; border-top: 1px solid var(--grid); }
+  #about a { color: inherit; }
   button, select, input {
     font: inherit; color: var(--text-primary); background: var(--surface-1);
     border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px;
@@ -238,7 +239,6 @@
 <body>
 <header>
   <h1 id="title">__TITLE__</h1>
-  <div class="meta" id="meta"></div>
   <button id="theme" type="button" aria-label="Color theme">Theme: auto</button>
 </header>
 <div id="check-panel"></div>
@@ -249,6 +249,7 @@
   </div>
 </div>
 <main id="views"></main>
+<footer id="about"></footer>
 <div id="tooltip" role="status"></div>
 <script id="data" type="application/json">__DATA__</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>

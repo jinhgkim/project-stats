@@ -1,5 +1,6 @@
 [repo]
 github = "AcademySoftwareFoundation/OpenImageIO"
+label = "ASWF/OpenImageIO"   # short name shown on the page
 
 [people]
 # Extra names, emails, or logins to drop. Logins ending in "[bot]" are always dropped.

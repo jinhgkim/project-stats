@@ -60,6 +60,12 @@ class ExportTest(unittest.TestCase):
         self.assertTrue(all(0 <= x < len(d["docs"]["ref"]) for x in a["doc"]))
         self.assertEqual(len(d["themes"]["doc"]), len(d["themes"]["theme"]))
 
+    def test_label_defaults_to_the_repo(self):
+        self.assertEqual(self.data["project"]["label"], "o/r")
+        self.cfg.repo = RepoConfig(github="o/r", label="O/R")
+        data = export.build(self.conn, self.cfg, generated="2026-11-06")
+        self.assertEqual(data["project"]["label"], "O/R")
+
     def test_people_without_bots_or_emails(self):
         p = self.data["people"]
         self.assertEqual(

@@ -97,6 +97,7 @@ def build(conn: sqlite3.Connection, cfg: Config, generated: str | None = None) -
         "version": VERSION,
         "project": {
             "github": cfg.repo.github,
+            "label": cfg.repo.label or cfg.repo.github,
             "generated": generated or datetime.now(UTC).strftime("%Y-%m-%d"),
             "data_end": day(max(a.ts for a in activity)) if activity else None,
             "excluded_items": sorted(cfg.activity.exclude_items),

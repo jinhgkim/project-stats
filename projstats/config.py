@@ -10,6 +10,7 @@ from pathlib import Path
 class RepoConfig:
     github: str = ""  # "owner/name"
     url: str = ""  # clone URL; defaults to the GitHub URL
+    label: str = ""  # short name shown on the page; defaults to `github`
 
 
 @dataclass

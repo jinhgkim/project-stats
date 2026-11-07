@@ -394,14 +394,12 @@ const PS = (() => {
   function start() {
     state = readHash();
     const p = data.project;
-    const meta = document.getElementById("meta");
-    meta.textContent =
-      `${p.github} · data through ${p.data_end === null ? "–" : dayToText(p.data_end)} · built ${p.generated}`;
-    const excluded = p.excluded_items || [];
-    if (excluded.length) {
-      meta.append(" · left out of counts: ", ...excluded.flatMap((n, i) => [
-        i ? ", " : "", el("a", {href: `https://github.com/${p.github}/issues/${n}`}, `#${n}`)]));
-    }
+    const longDate = d => new Date(d * DAY_MS).toLocaleDateString("en-US",
+      {year: "numeric", month: "short", day: "numeric", timeZone: "UTC"});
+    const about = document.getElementById("about");
+    about.title = `Page built ${longDate(dateToDay(p.generated))}`;
+    about.append(`Data from `, el("a", {href: `https://github.com/${p.github}`}, p.label || p.github),
+      `, through ${p.data_end === null ? "–" : longDate(p.data_end)}`);
     const themeButton = document.getElementById("theme");
     themeButton.onclick = () => {
       const next = THEMES[(THEMES.indexOf(state.colors || "auto") + 1) % THEMES.length];
