@@ -55,7 +55,7 @@ PS.registerView({
       .map((name, i) => ({name, color: `var(--ord-${i + 1})`, shape: "rect"})));
     const dayText = d => PS.dayToText(d);
     PS.fillTable(figure, [
-      {name: "Person", value: s => PS.personLink(s.person)},
+      {name: "Person", value: s => PS.personButton(s.person, state, "people-")},
       {name: "Segment", value: s => s.segment},
       {name: "First", value: s => dayText(s.first)},
       {name: "Last", value: s => dayText(s.last)},

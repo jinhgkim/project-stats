@@ -486,7 +486,7 @@ const PS = (() => {
   // Other projects' pages sit next to this one (data.siblings, set when the
   // page is built). The title ends with the dropdown: Project Analytics: [name].
   // Switching keeps the view except what belongs to one project.
-  const PROJECT_ONLY = ["theme", "without", "who"];
+  const PROJECT_ONLY = ["theme", "without", "who", "pwho"];
   function setupProjectSwitch() {
     const select = document.getElementById("project");
     const projects = data.siblings || [];

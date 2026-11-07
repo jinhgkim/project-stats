@@ -201,7 +201,7 @@ PS.registerView({
     const body = people.map(p => {
       const share = pct(total ? p.activity / total : 0);
       return PS.el("tr", {},
-        PS.el("td", {}, status(p.current), PS.personLink(p.person)),
+        PS.el("td", {}, status(p.current), PS.personButton(p.person, state, "people-")),
         showSegment ? PS.el("td", {class: "left"}, p.segment) : null,
         PS.el("td", {class: "left"},
           PS.el("div", {class: "cellbar"},

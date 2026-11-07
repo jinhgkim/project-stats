@@ -226,16 +226,7 @@ PS.registerView({
         PS.el("h4", {}, PS.swatch({color: s.color, shape: "rect"}), `${s.name} · ${members.length}`),
         members.length
           ? PS.el("ul", {}, members.map(m => PS.el("li", {},
-            PS.el("button", {
-              type: "button", class: "link-button",
-              "aria-expanded": String(PS.whoList(state).includes(m.person)),
-              onclick: () => {
-                const patch = PS.whoToggle(state, m.person);
-                const slot = PS.whoList(patch).indexOf(m.person);
-                if (slot < 0) set(patch);
-                else PS.jumpTo(slot ? `view-activity-${slot + 1}` : "view-activity", patch);
-              },
-            }, PS.personName(m.person)),
+            PS.personButton(m.person, state),
             PS.el("span", {class: "count"}, m.activity.toLocaleString("en-US")))))
           : PS.el("p", {class: "empty"}, "No one"));
     };
