@@ -7,15 +7,14 @@ PS.registerView({
   tab: "overview",
   bare: true,
   order: 0,
-  render(figure, {data, rows, state}) {
+  render(figure, {data, rows, rowsExcept, state}) {
     const gap = data.settings.return_gap_days;
     const rules = PS.segmentRules(state);
-    const {stats, dataEnd} = PS.metrics.personStats(rows, data, rules, gap);
-    const tile = (value, what, more, target) => {
+    const {stats, dataEnd} = PS.metrics.personStats(rows, data, rules, gap, rowsExcept("people"));
+    const tile = (value, what, target) => {
       const button = PS.el("button", {type: "button", class: "tile"},
         PS.el("span", {class: "value"}, value),
-        PS.el("span", {class: "what"}, what),
-        more ? PS.el("span", {class: "more"}, more) : null);
+        PS.el("span", {class: "what"}, what));
       button.onclick = () => PS.jumpTo(...target);
       return button;
     };
@@ -30,12 +29,10 @@ PS.registerView({
     const total = stats.reduce((sum, s) => sum + s.activity, 0);
     const coreShare = total ? core.reduce((sum, s) => sum + s.activity, 0) / total : 0;
     const tiles = [
-      tile(fmt(active), `active in the last ${gap} days`, `of ${fmt(stats.length)} people in the data shown`,
-        ["details-segments", {list: "active"}]),
-      tile(fmt(fresh), `new in the last ${gap} days`, "first activity in that time",
-        ["details-segments", {list: "new"}]),
+      tile(fmt(active), `active in the last ${gap} days`, ["details-segments", {list: "active"}]),
+      tile(fmt(fresh), `new in the last ${gap} days`, ["details-segments", {list: "new"}]),
       tile(fmt(core.length), `people do ${Math.round(coreShare * 100)}% of the activity`,
-        "the core: see who they are", ["details-segments", {list: "core"}]),
+        ["details-segments", {list: "core"}]),
     ];
 
     figure.plot.replaceChildren(PS.el("div", {class: "tiles"}, tiles));

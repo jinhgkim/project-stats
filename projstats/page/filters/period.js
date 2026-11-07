@@ -1,9 +1,8 @@
 // Setting: the period the contributors chart and the timeline group by. It
-// filters no rows, so it sits in the contributors chart, not the top bar.
+// filters no rows, but two tabs use it, so it sits in the top bar.
 
 PS.registerFilter({
   id: "period",
-  target: "period-counts",
   init(state) {
     const valid = ["month", "quarter", "year", "release"];
     if (!valid.includes(state.period)) state.period = "year";

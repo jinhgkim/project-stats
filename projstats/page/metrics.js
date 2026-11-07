@@ -79,10 +79,12 @@ PS.metrics = (() => {
   }
 
   // Cadence per person over `rows`. Mirrors retention.person_stats():
-  // segments come from each person's share of the activity in `rows`, and
-  // "current" means active within gapDays of the last day in `rows`.
+  // segments come from each person's share of the activity in `segmentRows`
+  // (default: `rows`), and "current" means active within gapDays of the last
+  // day in `rows`. Passing the rows with everyone counted keeps the same
+  // people in each segment when someone is left out of `rows`.
   // Returns {stats, dataEnd}.
-  function personStats(rows, data, rules, gapDays) {
+  function personStats(rows, data, rules, gapDays, segmentRows = rows) {
     const A = data.activity;
     const days = new Map();
     let dataEnd = -Infinity;
@@ -92,7 +94,9 @@ PS.metrics = (() => {
       days.get(person).push(A.day[i]);
       if (A.day[i] > dataEnd) dataEnd = A.day[i];
     }
-    const segmentOf = segmenter([...days.values()].map(list => list.length), rules);
+    const counts = new Map();
+    for (const i of segmentRows) counts.set(A.person[i], (counts.get(A.person[i]) || 0) + 1);
+    const segmentOf = segmenter([...counts.values()], rules);
     const quarterOf = PS.periodScheme("quarter").key;
     const yearOf = PS.periodScheme("year").key;
     const stats = [];

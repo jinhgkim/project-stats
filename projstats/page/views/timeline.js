@@ -6,11 +6,11 @@ PS.registerView({
   title: "Timeline per person",
   tab: "people",
   order: 40,
-  render(figure, {data, rows, state, set}) {
+  render(figure, {data, rows, rowsExcept, state, set}) {
     const gap = data.settings.return_gap_days;
     const rules = PS.segmentRules(state);
     const scheme = PS.periodScheme(state.period);
-    const {stats} = PS.metrics.personStats(rows, data, rules, gap);
+    const {stats} = PS.metrics.personStats(rows, data, rules, gap, rowsExcept("people"));
     const ids = PS.metrics.SEGMENTS;
     // One segment, core by default. Older links may list several: the first counts.
     const picked = (state.tl || "").split(",").find(s => ids.includes(s)) || "core";
@@ -47,7 +47,7 @@ PS.registerView({
     PS.fillHowto(figure, [
       "One row per person in the chosen segment, ordered by first activity.",
       `Each mark: a ${scheme.name} with activity; the shade shows how much (legend). ` +
-        "Periods follow Group by on the Overview tab.",
+        "Periods follow Group by in the top bar.",
       `Bold names: active in the last ${gap} days of data.`,
       "Segments use the cutoffs set in Segments. Hover a row for numbers.",
     ]);
