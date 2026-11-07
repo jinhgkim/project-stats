@@ -22,7 +22,7 @@ from projstats.themes import Registry, resolve, theme_key
 
 log = logging.getLogger(__name__)
 
-VERSION = "tag-v2"  # bump when the prompt changes, so documents are re-tagged
+VERSION = "tag-v3"  # bump when the prompt changes, so documents are re-tagged
 
 GENERIC = {
     theme_key(name)
@@ -78,6 +78,10 @@ Rules:
 thing a release note or roadmap would name.
 - Use the most specific area that fits: one file format, component, or tool, \
 or an effort that spans several of them.
+- Name a file format's theme "<format> support", e.g. "MP3 support".
+- Work on how the project is built, tested, or released belongs to that \
+effort (build system, continuous integration), even when it touches one \
+format or component.
 - Too narrow: a single function, class, or bug. Use the effort or area it \
 belongs to instead.
 - Too broad: the project as a whole ("{project} support", "{project} core"), \
@@ -99,19 +103,19 @@ Example input:
 [d1] PR, 2024-05-02
 mp3: handle ID3v2 tags with unsynchronization
 [d2] Issue, 2024-05-03
-Crash when a plugin is unloaded during playback (it also happens with the \
-new resampler)
+Shuffle skips tracks after the playlist is reordered (it also happens with \
+the new resampler)
 [d3] Commit, 2024-05-04
 Fix typo in README
 
 Example output:
 {{"documents": [
-  {{"id": "d1", "themes": ["MP3 decoding"]}},
-  {{"id": "d2", "themes": ["Plugin hosting"]}},
+  {{"id": "d1", "themes": ["MP3 support"]}},
+  {{"id": "d2", "themes": ["Playlists"]}},
   {{"id": "d3", "themes": []}}],
  "new_themes": [
-  {{"name": "MP3 decoding", "description": "Reading MP3 files and their tags"}},
-  {{"name": "Plugin hosting", "description": "Loading and running plugins"}}]}}"""
+  {{"name": "MP3 support", "description": "Reading MP3 files and their tags"}},
+  {{"name": "Playlists", "description": "Building and playing track lists"}}]}}"""
 
 SCHEMA = {
     "type": "object",
