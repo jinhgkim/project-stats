@@ -20,10 +20,10 @@ PS.registerView({
     }
     const kind = PS.themePeriod(state);
     const scheme = PS.periodScheme(kind);
-    // Every theme is shown even when the theme filter picks one; that one is marked.
+    // Every theme is shown even when the theme filter picks some; those are marked.
     const rows = rowsExcept("theme");
     const r = PS.metrics.themeTrends(rows, data, scheme, {skipInProgress: kind === "release"});
-    const selected = PS.selectedTheme(state);
+    const selected = PS.selectedThemes(state);
     const cols = r.periods.filter(p => p.covered && p.activity > 0);
     const untagged = r.periods.filter(p => !p.covered && p.activity > 0).length;
 
@@ -102,7 +102,7 @@ PS.registerView({
       const mid = y + rowH / 2;
       const g = svg.append("g");
       const trend = r.trends.get(t);
-      g.append("text").attr("class", t === selected ? "label current" : "label")
+      g.append("text").attr("class", selected.includes(t) ? "label current" : "label")
         .attr("x", 0).attr("y", mid).attr("dominant-baseline", "middle").text(label(t));
       cols.forEach((p, i) => {
         const s = shareOf(p, t);
@@ -151,7 +151,7 @@ PS.registerView({
         .on("focus", event => show(event.currentTarget))
         .on("pointerleave blur", PS.hideTooltip).node());
     });
-    PS.rovingFocus(hits, Math.max(0, themes.indexOf(selected)), "ArrowUp", "ArrowDown");
+    PS.rovingFocus(hits, Math.max(0, themes.indexOf(selected[0])), "ArrowUp", "ArrowDown");
     const scroll = PS.el("div", {class: "scroll"});
     scroll.addEventListener("scroll", PS.hideTooltip, {passive: true});
     scroll.append(svg.node());

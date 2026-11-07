@@ -57,8 +57,13 @@ PS.registerFilter({
     PS.rovingFocus(buttons, current(), "ArrowLeft", "ArrowRight");
     sync();
     this.syncControl = sync;
+    this.pick = () => (current() ? options[current()].name : null);
   },
   sync() { if (this.syncControl) this.syncControl(); },
+  chips() {
+    const name = this.pick && this.pick();
+    return name ? [{text: `Activity: ${name}`, clear: {kinds: undefined}}] : [];
+  },
   predicate(state) {
     const on = new Set(PS.selectedKinds());
     if (on.size === PS.data.kinds.length) return null;

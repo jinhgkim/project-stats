@@ -184,11 +184,13 @@ class ExportTest(unittest.TestCase):
 
     def test_leave_out_option_maps_logins_to_people(self):
         self.assertEqual(self.data["project"]["leave_out_option"], [])
-        self.cfg.people = PeopleConfig(leave_out_option=["ANN"])
+        self.assertEqual(self.data["project"]["leave_out_label"], [])
+        self.cfg.people = PeopleConfig(leave_out_option={"maintainer": "ANN"})
         data = export.build(self.conn, self.cfg, generated="2026-11-06")
         (index,) = data["project"]["leave_out_option"]
         self.assertEqual(data["people"]["login"][index], "ann")
-        self.cfg.people = PeopleConfig(leave_out_option=["nobody"])
+        self.assertEqual(data["project"]["leave_out_label"], ["maintainer"])
+        self.cfg.people = PeopleConfig(leave_out_option={"maintainer": "nobody"})
         with self.assertRaises(ValueError):
             export.build(self.conn, self.cfg, generated="2026-11-06")
 

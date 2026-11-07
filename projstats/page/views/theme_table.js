@@ -64,7 +64,8 @@ PS.registerView({
       return;
     }
 
-    if (figure.open === undefined) figure.open = PS.selectedTheme(state);
+    const selected = PS.selectedThemes(state);
+    if (figure.open === undefined) figure.open = selected.length ? selected[0] : null;
     const head = PS.el("tr", {}, ["Theme", "Documents", "First seen", "Last seen",
       "Peak", "Peak share", "Top people"].map(h => PS.el("th", {scope: "col"}, h)));
     const body = themes.map(x => {
@@ -77,7 +78,7 @@ PS.registerView({
         this.render(figure, {data, rowsExcept, state, set});
         if (figure.open !== null) figure.details.scrollIntoView({block: "nearest"});
       };
-      return PS.el("tr", {class: x.t === PS.selectedTheme(state) ? "selected" : null},
+      return PS.el("tr", {class: selected.includes(x.t) ? "selected" : null},
         PS.el("td", {}, button),
         PS.el("td", {}, x.docs.length),
         PS.el("td", {class: "nowrap"}, x.first === null ? "–" : day(x.first)),
@@ -93,10 +94,12 @@ PS.registerView({
     const open = themes.find(x => x.t === figure.open);
     figure.details.hidden = !open;
     if (!open) return;
-    const filtered = PS.selectedTheme(state) === open.t;
+    const filtered = selected.includes(open.t);
     const filterButton = PS.el("button", {type: "button"},
-      filtered ? "Show all themes on the page" : "Filter the page to this theme");
-    filterButton.onclick = () => set({theme: filtered ? undefined : name(open.t)});
+      filtered ? (selected.length === 1 ? "Show all themes on the page" : "Remove this theme from the filter")
+        : selected.length ? "Add this theme to the filter" : "Filter the page to this theme");
+    filterButton.onclick = () => set(PS.themePatch(
+      filtered ? selected.filter(t => t !== open.t) : [...selected, open.t]));
     const close = PS.el("button", {type: "button"}, "Close");
     close.onclick = () => {
       figure.open = null;

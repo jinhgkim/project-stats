@@ -110,8 +110,34 @@
     background: var(--page); border-bottom: 1px solid var(--grid);
   }
   @media (max-width: 700px) { #filters { position: static; } }
-  #filter-controls { display: flex; flex-wrap: wrap; gap: 10px 24px; align-items: center; }
-  #reset[disabled] { opacity: 0.45; cursor: default; }
+  #filter-controls, #filter-more { display: flex; flex-wrap: wrap; gap: 10px 24px; align-items: center; }
+  #filter-more { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--grid); }
+  #more-toggle { display: inline-flex; gap: 6px; align-items: center; }
+  .badge {
+    min-width: 18px; padding: 0 5px; border-radius: 999px; text-align: center;
+    font-size: 11px; line-height: 18px; background: var(--series-1); color: #fff;
+  }
+  .chev {
+    width: 6px; height: 6px; margin: -3px 2px 0; border: solid var(--text-muted);
+    border-width: 0 1.5px 1.5px 0; transform: rotate(45deg); transition: transform 0.15s;
+  }
+  #more-toggle[aria-expanded="true"] .chev { margin-top: 3px; transform: rotate(-135deg); }
+  #filter-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding-top: 8px; }
+  #filter-chips .label { color: var(--text-muted); margin-right: 2px; }
+  .chip {
+    display: inline-flex; align-items: center; padding: 1px 3px 1px 10px;
+    border-radius: 999px; background: var(--wash); border: 1px solid var(--border);
+  }
+  .chip button {
+    border: none; background: none; padding: 0 6px; border-radius: 999px;
+    color: var(--text-secondary); font-size: 16px; line-height: 1.2;
+  }
+  .chip button:hover { color: var(--text-primary); background: var(--wash); }
+  #filter-chips button.link {
+    border: none; background: none; margin-left: auto; padding: 2px 4px;
+    color: var(--text-secondary); text-decoration: underline;
+  }
+  #filter-chips button.link:hover { color: var(--text-primary); }
   #filter-inner { padding-top: 10px; }
   #tabs { display: flex; gap: 4px; margin-top: 10px; }
   #tabs .tab {
@@ -130,7 +156,6 @@
     .grid > figure.view { grid-column: 1 / -1; }
     .grid > figure.view.half { grid-column: auto; }
   }
-  #filter-dates { flex-basis: 100%; }
   .filter { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
   .filter > .label { color: var(--text-secondary); margin-right: 2px; }
   .choice { display: inline-flex; gap: 6px; }
@@ -258,6 +283,8 @@
 <div id="filters" role="region" aria-label="Filters">
   <div id="filter-inner">
     <div id="filter-controls" role="toolbar" aria-label="Filters for every tab"></div>
+    <div id="filter-more" hidden></div>
+    <div id="filter-chips" hidden></div>
     <div id="tabs" role="tablist" aria-label="Views"></div>
   </div>
 </div>

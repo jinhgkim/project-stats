@@ -1,0 +1,29 @@
+[repo]
+github = "AcademySoftwareFoundation/MaterialX"
+label = "ASWF/MaterialX"   # short name shown on the page
+
+[people]
+# Extra names, emails, or logins to drop. Logins ending in "[bot]" are always dropped.
+bots = ["Copilot"]
+# People the page lets you leave out with a checkbox, as label = login (all included by default).
+leave_out_option = { maintainer = "jstone-lucasfilm" }  # Jonathan Stone
+
+[activity]
+# PR or issue numbers left out of every count, along with commits linked to those PRs.
+exclude_items = []
+
+[retention]
+return_gap_days = 365   # "returning" = back after at least this long away
+# Segments, ranked by activity: core = the top people who together do 80% of all
+# activity; regular = the next people, up to 90%; casual = everyone else with
+# more than one activity; one-time = exactly one activity.
+core_share = 0.80
+regular_share = 0.90
+
+[releases]
+# Final release tags: v1.39.4. RCs and suffixed tags (v1.38.10-OpenPBR) don't
+# match. Each major.minor's earliest match is its release.
+tag_pattern = '^v(\d+)\.(\d+)\.(\d+)$'
+
+[themes]
+enabled = false

@@ -56,8 +56,17 @@ PS.registerFilter({
     box.append(PS.el("span", {class: "label"}, "Dates"), select, from, PS.el("span", {}, "to"), to);
     sync();
     this.syncControl = sync;
+    this.presets = presets;
   },
   sync() { if (this.syncControl) this.syncControl(); },
+  chips(state) {
+    if (!state.from && !state.to) return [];
+    const match = this.presets.find(p => (p.from || "") === (state.from || "") && !state.to);
+    const text = match ? match.name
+      : state.from && state.to ? `${state.from} to ${state.to}`
+      : state.from ? `From ${state.from}` : `Until ${state.to}`;
+    return [{text, clear: {from: undefined, to: undefined}}];
+  },
   predicate(state) {
     if (!state.from && !state.to) return null;
     const lo = state.from ? PS.dateToDay(state.from) : -Infinity;

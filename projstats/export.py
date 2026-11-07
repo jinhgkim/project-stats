@@ -88,7 +88,12 @@ def build(conn: sqlite3.Connection, cfg: Config, generated: str | None = None) -
         for t in ids
     )
 
-    optional = _people_by_login(people.people, cfg.people.leave_out_option)
+    optional, optional_labels = [], []
+    for label, login in cfg.people.leave_out_option.items():
+        for i in _people_by_login(people.people, [login]):
+            if i not in optional:
+                optional.append(i)
+                optional_labels.append(label)
 
     sources = {}
     for a in activity:
@@ -103,6 +108,7 @@ def build(conn: sqlite3.Connection, cfg: Config, generated: str | None = None) -
             "data_end": day(max(a.ts for a in activity)) if activity else None,
             "excluded_items": sorted(cfg.activity.exclude_items),
             "leave_out_option": optional,
+            "leave_out_label": optional_labels,
         },
         "settings": dataclasses.asdict(cfg.retention),
         "kinds": kinds,

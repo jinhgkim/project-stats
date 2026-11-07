@@ -48,9 +48,12 @@ const PS = (() => {
   // ---- registry ---------------------------------------------------------------
 
   // filter: {id, init?(state), control(el, state, set), predicate?(state) -> (i) => bool,
-  //          sync?(state), target?}; sync updates the control when another part
-  //          of the page changes its state. A control with a `target` view id
-  //          sits in that view instead of the top bar (settings, not filters).
+  //          sync?(state), target?, secondary?, chips?(state)}; sync updates the
+  //          control when another part of the page changes its state. A control
+  //          with a `target` view id sits in that view instead of the top bar
+  //          (settings, not filters). A `secondary` control waits behind "More
+  //          filters". chips(state) lists [{text, clear}] for what the filter
+  //          changes now; clear is the state patch that undoes it.
   function registerFilter(filter) { if (featureOn(filter)) filters.push(filter); }
   // A filter or view with a `feature` (e.g. "themes") exists only when
   // data.features turns it on.
@@ -87,6 +90,32 @@ const PS = (() => {
     return rows;
   }
 
+  // One removable chip per filter that is narrowing the data, then Reset all.
+  // The badge on "More filters" counts the chips of filters kept behind it.
+  function renderChips() {
+    const box = document.getElementById("filter-chips");
+    const chips = filters.flatMap(f => (f.chips ? f.chips(state) : []).map(c => ({...c, secondary: f.secondary})));
+    const badge = document.getElementById("more-badge");
+    if (badge) {
+      const hidden = chips.filter(c => c.secondary).length;
+      badge.hidden = !hidden;
+      badge.textContent = hidden;
+    }
+    box.hidden = !chips.length;
+    box.replaceChildren();
+    if (!chips.length) return;
+    box.append(el("span", {class: "label"}, "Filtered by"));
+    for (const c of chips) {
+      box.append(el("span", {class: "chip"}, c.text, el("button", {
+        type: "button", "aria-label": `Remove filter: ${c.text}`, onclick: () => set(c.clear),
+      }, "×")));
+    }
+    box.append(el("button", {
+      type: "button", class: "link",
+      onclick: () => set(Object.fromEntries(FILTER_KEYS.map(k => [k, undefined]))),
+    }, "Reset all"));
+  }
+
   function renderAll() {
     const except = new Map();
     const rowsExcept = id => {
@@ -94,8 +123,7 @@ const PS = (() => {
       return except.get(id);
     };
     const ctx = {data, rows: filteredRows(), rowsExcept, state, set};
-    const reset = document.getElementById("reset");
-    if (reset) reset.disabled = !FILTER_KEYS.some(k => state[k] !== undefined);
+    renderChips();
     const open = activeTab();
     for (const tab of TABS) {
       if (!tab.button) continue;
@@ -461,23 +489,35 @@ const PS = (() => {
     });
 
     const bar = document.getElementById("filter-controls");
+    const more = document.getElementById("filter-more");
     for (const filter of filters) {
       if (filter.init) filter.init(state);
       const box = el("div", {class: "filter", id: `filter-${filter.id}`});
       filter.control(box, state, set);
       const target = filter.target && views.find(v => v.id === filter.target);
       if (target) target.figure.controls.append(box);
-      else bar.append(box);
+      else if (filter.secondary) {
+        if (box.childElementCount) more.append(box);
+      } else bar.append(box);
     }
-    bar.append(el("button", {
-      type: "button", id: "reset", onclick: () => set(Object.fromEntries(FILTER_KEYS.map(k => [k, undefined]))),
-    }, "Reset filters"));
+    if (more.childElementCount) {
+      const toggle = el("button", {
+        type: "button", id: "more-toggle", "aria-expanded": "false", "aria-controls": "filter-more",
+      }, "More filters", el("span", {class: "badge", id: "more-badge", hidden: true}), el("span", {class: "chev", "aria-hidden": "true"}));
+      toggle.onclick = () => {
+        const opening = more.hidden;
+        more.hidden = !opening;
+        toggle.setAttribute("aria-expanded", String(opening));
+      };
+      bar.append(toggle);
+    }
 
-    // Sections scroll clear of the pinned bar.
+    // Sections scroll clear of the pinned bar, which grows when the extra
+    // filters open or chips appear.
     const barNode = document.getElementById("filters");
-    const updateBar = () => document.documentElement.style.setProperty("--bar-h", `${barNode.offsetHeight}px`);
-    updateBar();
-    window.addEventListener("resize", updateBar);
+    new ResizeObserver(() => {
+      document.documentElement.style.setProperty("--bar-h", `${barNode.offsetHeight}px`);
+    }).observe(barNode);
     writeHash();
     renderAll();
     for (const hook of startHooks) hook();

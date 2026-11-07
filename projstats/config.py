@@ -16,8 +16,9 @@ class RepoConfig:
 @dataclass
 class PeopleConfig:
     bots: list[str] = field(default_factory=list)
-    # GitHub logins the page offers a checkbox to leave out of every count.
-    leave_out_option: list[str] = field(default_factory=list)
+    # Checkboxes the page offers to leave a person out of every count: the
+    # label shown on the page (not their name) -> their GitHub login.
+    leave_out_option: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
@@ -123,8 +124,10 @@ def load(path: str | Path) -> Config:
     if not owner or not name or "/" in name:
         raise ValueError(f'[repo] github must be "owner/name", got {repo.github!r}')
     opt = people.leave_out_option
-    if not isinstance(opt, list) or not all(isinstance(x, str) and x for x in opt):
-        raise ValueError("[people] leave_out_option must be a list of GitHub logins")
+    if not isinstance(opt, dict) or not all(
+        isinstance(k, str) and k.strip() and isinstance(v, str) and v for k, v in opt.items()
+    ):
+        raise ValueError('[people] leave_out_option must map labels to GitHub logins, e.g. { maintainer = "login" }')
     ex = activity.exclude_items
     if not isinstance(ex, list) or not all(type(n) is int and n > 0 for n in ex):
         raise ValueError("[activity] exclude_items must be PR or issue numbers")
