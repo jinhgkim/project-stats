@@ -22,8 +22,11 @@ See `projstats/storage.py` for the tables and `sync_clone` in
 
 Theme tagging is the slow step: the first full run over 9,267 documents took
 3.1 hours with a local 9B model (`--pause 3`). Reruns only tag new or changed
-documents. `people`, `export`, and `page` each take under a second. Fetch time
-wasn't recorded.
+documents. `people`, `export`, and `page` each take under a second.
+
+With themes off (`[themes] enabled = false`), a first run takes minutes. For
+OpenImageIO (6,872 commits, 4,508 PRs, 1,083 issues), a first `fetch`,
+including the clone, took 5 min 49 s and 173 GitHub queries.
 
 See `tag_documents` in `projstats/tagger.py`.
 
