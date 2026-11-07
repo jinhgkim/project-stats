@@ -20,7 +20,9 @@ class PageTest(unittest.TestCase):
         self.assertEqual(names[:2], ["core.js", "metrics.js"])
         self.assertEqual(names[-1], "check.js")
         self.assertIn("filters/kind.js", names)
-        self.assertIn("views/period_counts.js", names)
+        for view in ("period_counts", "segments", "cohorts", "timeline"):
+            self.assertIn(f"views/{view}.js", names)
+        self.assertIn("filters/segment_rules.js", names)
         filters = [n for n in names if n.startswith("filters/")]
         self.assertEqual(filters, sorted(filters))
         for path in page.js_files():

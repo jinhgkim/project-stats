@@ -43,7 +43,8 @@ const PS = (() => {
 
   // filter: {id, init?(state), control(el, state, set), predicate?(state) -> (i) => bool}
   function registerFilter(filter) { filters.push(filter); }
-  // view: {id, title, render(figure, ctx)}; ctx = {data, rows, state, set}
+  // view: {id, title, order, render(figure, ctx)}; ctx = {data, rows, state, set}.
+  // Views appear by `order`, lowest first.
   function registerView(view) { views.push(view); }
   function onStart(fn) { startHooks.push(fn); }
 
@@ -91,6 +92,7 @@ const PS = (() => {
     const figure = {
       root: el("figure", {class: "view", id: `view-${view.id}`}),
       subtitle: el("p", {class: "subtitle"}),
+      controls: el("div", {class: "controls"}),
       legend: el("div", {class: "legend"}),
       plot: el("div", {class: "plot"}),
       table: el("div", {class: "table-wrap", hidden: true}),
@@ -105,7 +107,7 @@ const PS = (() => {
     };
     figure.root.append(
       el("div", {class: "head"}, el("h2", {}, view.title), tableButton),
-      figure.subtitle, figure.legend, figure.plot, figure.table,
+      figure.subtitle, figure.controls, figure.legend, figure.plot, figure.table,
     );
     return figure;
   }
@@ -140,6 +142,30 @@ const PS = (() => {
     }
     svg.append(mark);
     return svg;
+  }
+
+  // Keyboard for a list of marks: one tab stop (at index `current`); the
+  // prev/next keys, Home, and End move focus between them.
+  function rovingFocus(nodes, current, prevKey, nextKey) {
+    nodes.forEach((node, i) => {
+      node.setAttribute("tabindex", i === current ? 0 : -1);
+      node.addEventListener("keydown", event => {
+        const to = {[prevKey]: i - 1, [nextKey]: i + 1, Home: 0, End: nodes.length - 1}[event.key];
+        if (to === undefined) return;
+        event.preventDefault();
+        const j = Math.max(0, Math.min(nodes.length - 1, to));
+        node.setAttribute("tabindex", -1);
+        nodes[j].setAttribute("tabindex", 0);
+        nodes[j].focus();
+      });
+    });
+  }
+
+  // A person's display name, and a GitHub profile link when a login is known.
+  function personName(i) { return data.people.name[i] || data.people.login[i] || `#${i}`; }
+  function personLink(i) {
+    const login = data.people.login[i];
+    return login ? el("a", {href: `https://github.com/${login}`}, personName(i)) : personName(i);
   }
 
   // ---- tooltip ------------------------------------------------------------------
@@ -250,6 +276,24 @@ const PS = (() => {
     return merged.slice(1).map(m => ({day: m.day, label: `${m.names.join(", ")} start`}));
   }
 
+  // Labels for sourceMarkers(), stacked 14px apart from y0 and kept between
+  // minX and maxX (next to their line when there is room).
+  function markerLabels(g, markers, x, y0, minX, maxX) {
+    markers.forEach((m, i) => {
+      const w = textWidth(m.label, 11);
+      const left = Math.max(minX, Math.min(x(m.key) + 4, maxX - w));
+      g.append("text").attr("x", left).attr("y", y0 + i * 14).text(m.label);
+    });
+  }
+
+  // Text cut with "…" to fit `max` px at `size` px.
+  function fitText(text, size, max) {
+    if (textWidth(text, size) <= max) return text;
+    let n = text.length;
+    while (n > 1 && textWidth(`${text.slice(0, n)}…`, size) > max) n -= 1;
+    return `${text.slice(0, n)}…`;
+  }
+
   function selectedKinds() {
     return state.kinds ? state.kinds.split(",").filter(k => data.kinds.includes(k)) : data.kinds.slice();
   }
@@ -293,6 +337,7 @@ const PS = (() => {
       bar.append(box);
     }
     const main = document.getElementById("views");
+    views.sort((a, b) => (a.order || 0) - (b.order || 0));
     for (const view of views) {
       view.figure = makeFigure(view);
       main.append(view.figure.root);
@@ -312,7 +357,8 @@ const PS = (() => {
   return {
     data, get state() { return state; }, set, start,
     registerFilter, registerView, onStart,
-    el, fillTable, fillLegend, showTooltip, hideTooltip, textWidth,
-    dayToText, dateToDay, periodScheme, sourceMarkers, selectedKinds, KIND_NAMES,
+    el, fillTable, fillLegend, showTooltip, hideTooltip, textWidth, rovingFocus,
+    personName, personLink, dayToDate,
+    dayToText, dateToDay, periodScheme, sourceMarkers, markerLabels, fitText, selectedKinds, KIND_NAMES,
   };
 })();

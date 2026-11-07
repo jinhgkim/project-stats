@@ -22,6 +22,7 @@ function markRangeCuts(periods, scheme, state, data) {
 PS.registerView({
   id: "period-counts",
   title: "Contributors per period",
+  order: 10,
   render(figure, {data, rows, state}) {
     const gap = data.settings.return_gap_days;
     const scheme = PS.periodScheme(state.period);
@@ -63,7 +64,7 @@ PS.registerView({
 
     const width = Math.max(320, figure.plot.clientWidth || figure.root.clientWidth - 32);
     const height = 320;
-    const top = 30, bottom = 26, left = 40;
+    const top = 36, bottom = 26, left = 40;
     const innerH = height - top - bottom;
     const yMax = d3.max(periods, p => Math.max(p.active, p.lastSeen || 0)) || 1;
     const y = d3.scaleLinear([0, yMax], [innerH, 0]).nice();
@@ -168,10 +169,10 @@ PS.registerView({
       .filter(m => byKey.has(m.key) && m.key !== periods[0].key);
     const markerG = g.append("g").attr("class", "marker");
     markers.forEach((m, i) => {
-      const mx = x(m.key);
-      markerG.append("line").attr("x1", mx).attr("x2", mx).attr("y1", -18 + i * 12).attr("y2", innerH);
-      markerG.append("text").attr("x", mx + 4).attr("y", -20 + i * 12).text(m.label);
+      markerG.append("line").attr("x1", x(m.key)).attr("x2", x(m.key))
+        .attr("y1", -32 + i * 14).attr("y2", innerH);
     });
+    PS.markerLabels(markerG, markers, x, -24, -margin.left, innerW + margin.right);
 
     for (const d of direct) {
       g.append("text").attr("class", "label")
@@ -184,15 +185,7 @@ PS.registerView({
     if (!byKey.has(figure.focusKey)) figure.focusKey = last.key;
     const hit = g.append("g");
     const hits = [];
-    const move = (event, i) => {
-      const to = {ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: hits.length - 1}[event.key];
-      if (to === undefined) return;
-      event.preventDefault();
-      const j = Math.max(0, Math.min(hits.length - 1, to));
-      hits[i].attr("tabindex", -1);
-      hits[j].attr("tabindex", 0).node().focus();
-    };
-    periods.forEach((p, i) => {
+    periods.forEach(p => {
       const show = event => PS.showTooltip(event, `${p.label}${partial(p) ? " (partial)" : ""}`, [
         {name: "active", value: p.active},
         ...series.map(s => ({name: s.name.toLowerCase(), value: p[s.id], color: s.color})),
@@ -202,16 +195,15 @@ PS.registerView({
       hits.push(hit.append("rect").attr("class", "hit")
         .attr("x", x(p.key) - (x.step() - x.bandwidth()) / 2).attr("y", 0)
         .attr("width", x.step()).attr("height", innerH)
-        .attr("tabindex", p.key === figure.focusKey ? 0 : -1)
         .attr("role", "img")
         .attr("aria-label", `${p.label}${partial(p) ? " (partial)" : ""}: ${p.active} active, ` +
           `${p.new} new, ${p.returning} returning, ${p.continuing} continuing, ` +
           `last seen ${p.lastSeen === null ? "not known yet" : p.lastSeen}`)
         .on("pointermove", show)
         .on("focus", event => { figure.focusKey = p.key; show(event.currentTarget); })
-        .on("keydown", event => move(event, i))
-        .on("pointerleave blur", PS.hideTooltip));
+        .on("pointerleave blur", PS.hideTooltip).node());
     });
+    PS.rovingFocus(hits, periods.findIndex(p => p.key === figure.focusKey), "ArrowLeft", "ArrowRight");
 
     figure.plot.replaceChildren(svg.node());
   },

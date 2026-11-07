@@ -20,6 +20,13 @@
     --series-2: #eb6834;
     --series-3: #1baf7a;
     --series-4: #eda100;
+    --series-1-faint: #86b6ef;
+    /* One-hue blue ramps: seq-* for the cohort heatmap (top three take the
+       inverse ink), ord-* for timeline marks (lightest still clears 2:1). */
+    --seq-1: #cde2fb; --seq-2: #9ec5f4; --seq-3: #6da7ec;
+    --seq-4: #256abf; --seq-5: #184f95; --seq-6: #0d366b;
+    --seq-ink-inverse: #ffffff;
+    --ord-1: #86b6ef; --ord-2: #3987e5; --ord-3: #1c5cab; --ord-4: #0d366b;
     --critical: #d03b3b;
     --good: #0ca30c;
   }
@@ -39,6 +46,11 @@
       --series-2: #d95926;
       --series-3: #199e70;
       --series-4: #c98500;
+      --series-1-faint: #184f95;
+      --seq-1: #0d366b; --seq-2: #184f95; --seq-3: #256abf;
+      --seq-4: #6da7ec; --seq-5: #9ec5f4; --seq-6: #cde2fb;
+      --seq-ink-inverse: #0b0b0b;
+      --ord-1: #184f95; --ord-2: #2a78d6; --ord-3: #6da7ec; --ord-4: #b7d3f6;
     }
   }
   :root[data-theme="dark"] {
@@ -56,6 +68,11 @@
     --series-2: #d95926;
     --series-3: #199e70;
     --series-4: #c98500;
+    --series-1-faint: #184f95;
+    --seq-1: #0d366b; --seq-2: #184f95; --seq-3: #256abf;
+    --seq-4: #6da7ec; --seq-5: #9ec5f4; --seq-6: #cde2fb;
+    --seq-ink-inverse: #0b0b0b;
+    --ord-1: #184f95; --ord-2: #2a78d6; --ord-3: #6da7ec; --ord-4: #b7d3f6;
   }
   * { box-sizing: border-box; }
   [hidden] { display: none !important; }
@@ -108,6 +125,17 @@
   .plot .hit:hover, .plot .hit:focus { fill: var(--wash); }
   .plot .hit:focus-visible { stroke: var(--series-1); stroke-width: 2px; }
   .empty { color: var(--text-secondary); padding: 24px 0; }
+  .controls { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 4px 0 8px; }
+  .controls:empty { display: none; }
+  .controls > .label { color: var(--text-secondary); margin-right: 2px; }
+  input.short { width: 4.5em; }
+  .filter .error { color: var(--critical); }
+  .filter .error:empty { display: none; }
+  .plot .name { fill: var(--text-secondary); }
+  .plot .name.current { fill: var(--text-primary); font-weight: 600; }
+  .plot .cell-ink { fill: var(--text-primary); font-size: 12px; }
+  .plot .cell-ink-inverse { fill: var(--seq-ink-inverse); font-size: 12px; }
+  .plot .scroll { max-height: 560px; overflow-y: auto; }
   table.data { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
   table.data th, table.data td { text-align: right; padding: 4px 8px; border-bottom: 1px solid var(--grid); }
   table.data th:first-child, table.data td:first-child { text-align: left; }
