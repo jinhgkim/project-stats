@@ -3,13 +3,15 @@ name = "projstats"
 version = "0.1.0"
 description = "Contributor retention and topic trends from a project's git and GitHub history"
 requires-python = ">=3.11"
+license = "MIT"
+license-files = ["LICENSE"]
 dependencies = []
 
 [project.scripts]
 projstats = "projstats.cli:main"
 
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
