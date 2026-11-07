@@ -19,6 +19,7 @@ from projstats import (
     storage,
     tagger,
     themes,
+    trends,
 )
 from projstats.llm import CachedProvider, LLMError, OllamaProvider
 
@@ -132,6 +133,79 @@ def _day(ts: int) -> str:
     return datetime.fromtimestamp(ts, UTC).strftime("%Y-%m-%d")
 
 
+def _themes_trends(conn, cfg: config.Config, args) -> int:
+    """Temporary text report of theme trends, until the page exists."""
+    docs = documents.load_documents(conn)
+    if args.period == "release":
+        periods = documents.release_periods(releases.load_releases(conn))
+    else:
+        periods = documents.year_periods(docs)
+    people = _load_people(conn, cfg)
+    names = {p.key: p.name for p in people.people}
+    r = trends.analyze(
+        docs,
+        retention.load_activity(conn, people),
+        periods,
+        trends.load_doc_themes(conn),
+        trends.load_tagged(conn),
+        trends.load_theme_names(conn),
+        documents.commit_links(conn),
+        person_names=names,
+        skip_in_progress=args.period == "release",
+    )
+    untagged = [p for p in r.periods if not p.covered]
+    if untagged:
+        print(
+            f"not tagged (under half of documents): {len(untagged)} periods "
+            f"({untagged[0].period.label} .. {untagged[-1].period.label})"
+        )
+    for p in r.periods:
+        if not p.covered:
+            continue
+        note = ", in progress" if p.period.partial else ""
+        print(
+            f"\n== {p.period.label}{note}: {p.tagged}/{p.docs} documents tagged, "
+            f"{p.activity} activity on them"
+        )
+        print(
+            f"  {'theme':28} {'docs':>4} {'code':>5} {'disc':>5} {'ppl':>4} "
+            f"{'share':>6}"
+        )
+        for s in p.themes[: args.top]:
+            print(
+                f"  {s.name[:28]:28} {s.docs:4} {s.code:5} {s.discussion:5} "
+                f"{s.people:4} {100 * s.share:5.1f}%"
+            )
+        if not p.new_known:
+            print("  new: (no earlier tagged period to compare with)")
+        elif p.new_themes:
+            print(f"  new: {', '.join(p.new_themes)}")
+    if r.recent is None or not r.earlier:
+        print("\ntrends: need at least two tagged periods")
+        return 0
+    recent = r.periods[r.recent].period.label
+    earlier = ", ".join(r.periods[i].period.label for i in r.earlier)
+    print(f"\n== trends: {recent} vs {earlier}")
+    for t in r.trends:
+        print(
+            f"  {t.label:8} {t.name[:30]:30} {100 * t.recent_share:5.1f}% vs "
+            f"{100 * t.earlier_share:5.1f}%  ({t.docs} docs)"
+        )
+    print("\n== top contributors (all tagged periods)")
+    totals = Counter()
+    for p in r.periods:
+        for s in p.themes:
+            totals[s.theme_id, s.name] += s.code + s.discussion
+    for (theme_id, name), _ in totals.most_common(args.top):
+        people_list = ", ".join(
+            f"{names.get(c.person, c.person)} ({c.code}+{c.discussion})"
+            for c in r.contributors.get(theme_id, [])
+        )
+        print(f"  {name[:28]:28} {people_list}")
+    print("  (code + discussion activity)")
+    return 0
+
+
 def _pct(n: int | None, d: int) -> str:
     return "n/a" if n is None else f"{n} ({100 * n / d:.0f}%)"
 
@@ -139,6 +213,8 @@ def _pct(n: int | None, d: int) -> str:
 def cmd_themes(args) -> int:
     cfg = config.load(args.config)
     conn = storage.connect(cfg.db_path)
+    if args.action == "trends":
+        return _themes_trends(conn, cfg, args)
     if args.action == "list":
         dates = {d.ref: d.ts for d in documents.load_documents(conn)}
         rows = themes.summary(conn, dates)
@@ -383,6 +459,9 @@ def main(argv=None) -> int:
     a.add_argument("into")
     a = actions.add_parser("delete", help="remove a theme and block it")
     a.add_argument("name")
+    a = actions.add_parser("trends", help="temporary report of theme trends")
+    a.add_argument("--period", choices=["release", "year"], default="release")
+    a.add_argument("--top", type=int, default=12, help="themes per table (default 12)")
 
     p = sub.add_parser("tag", help="tag documents with themes using the local LLM")
     p.add_argument("config", help="project config, e.g. projects/oiio.toml")

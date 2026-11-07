@@ -45,24 +45,43 @@ class Period:
     partial: bool = False  # still in progress
 
 
-def load_documents(conn: sqlite3.Connection) -> list[Document]:
-    docs = []
-    pr_numbers, merge_shas = set(), set()
-    for kind, number, title, body, created, sha in conn.execute(
-        "SELECT kind, number, title, body, created_at, merge_commit_sha FROM live_items"
+def commit_links(conn: sqlite3.Connection) -> dict[str, str]:
+    """Commits that carry a PR's work, sha -> "pr#N": the PR's merge commit, or
+    a commit whose subject ends with "(#N)" for a known PR."""
+    pr_numbers, by_merge = set(), {}
+    for number, sha in conn.execute(
+        "SELECT number, merge_commit_sha FROM live_items WHERE kind = 'pr'"
     ):
-        docs.append(Document(kind, f"{kind}#{number}", created, title, body))
-        if kind == "pr":
-            pr_numbers.add(number)
-            if sha:
-                merge_shas.add(sha)
+        pr_numbers.add(number)
+        if sha:
+            by_merge[sha] = f"pr#{number}"
+    links = {}
+    for sha, subject in conn.execute("SELECT sha, subject FROM commits"):
+        if sha in by_merge:
+            links[sha] = by_merge[sha]
+        elif (m := PR_SUFFIX.search(subject)) and int(m.group(1)) in pr_numbers:
+            links[sha] = f"pr#{m.group(1)}"
+    return links
+
+
+def commit_ref(sha: str) -> str:
+    """The document ref of a commit that isn't linked to a PR."""
+    return sha[:10]
+
+
+def load_documents(conn: sqlite3.Connection) -> list[Document]:
+    docs = [
+        Document(kind, f"{kind}#{number}", created, title, body)
+        for kind, number, title, body, created in conn.execute(
+            "SELECT kind, number, title, body, created_at FROM live_items"
+        )
+    ]
+    linked = commit_links(conn)
     for sha, subject, body, ts in conn.execute(
         "SELECT sha, subject, body, authored_at FROM commits"
     ):
-        m = PR_SUFFIX.search(subject)
-        if sha in merge_shas or (m and int(m.group(1)) in pr_numbers):
-            continue
-        docs.append(Document("commit", sha[:10], ts, subject, body))
+        if sha not in linked:
+            docs.append(Document("commit", commit_ref(sha), ts, subject, body))
     return docs
 
 
@@ -102,8 +121,13 @@ def release_periods(releases) -> list[Period]:
 
 def assign(docs: list[Document], periods: list[Period]) -> list[int]:
     """Index of the period each document falls in."""
+    return period_indexes([d.ts for d in docs], periods)
+
+
+def period_indexes(timestamps: list[int], periods: list[Period]) -> list[int]:
+    """Index of the period each timestamp falls in."""
     starts = [p.start for p in periods[1:]]
-    return [bisect_right(starts, d.ts) for d in docs]
+    return [bisect_right(starts, ts) for ts in timestamps]
 
 
 def _line_keys(line: str) -> set[str]:
