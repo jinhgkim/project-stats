@@ -5,7 +5,7 @@ import subprocess
 import sys
 from datetime import UTC, datetime
 
-from projstats import config, gitlog, identity, retention, storage
+from projstats import config, github, gitlog, identity, retention, storage
 
 
 def cmd_fetch(args) -> int:
@@ -22,7 +22,47 @@ def cmd_fetch(args) -> int:
     print(f"commits: {s.new} new, {s.total} total (head {s.head[:7]})")
     for note in notes:
         print(f"  {note}")
+    if args.no_github:
+        return 0
+
+    owner, name = cfg.repo.github.split("/")
+    fetcher = github.Fetcher(conn, github.GhClient(), owner, name)
+    try:
+        for kind in ("pr", "issue"):
+            fetcher.fetch_items(kind, full=args.full)
+        fetcher.fetch_commit_logins(full=args.full)
+    finally:
+        _print_github(conn, fetcher.stats, args.full)
     return 0
+
+
+def _print_github(conn, stats: github.FetchStats, full: bool) -> None:
+    for kind, label in (("pr", "PRs"), ("issue", "issues")):
+        if kind not in stats.fetched:
+            continue
+        by_state = dict(
+            conn.execute(
+                "SELECT state, COUNT(*) FROM live_items WHERE kind = ? GROUP BY state",
+                (kind,),
+            ).fetchall()
+        )
+        states = ", ".join(f"{n} {s}" for s, n in sorted(by_state.items()))
+        line = f"{label}: {stats.fetched[kind]} fetched; stored {states or 'none'}"
+        if full:
+            line += f"; {stats.vanished.get(kind, 0)} newly vanished"
+        print(line)
+    events = dict(
+        conn.execute("SELECT kind, COUNT(*) FROM live_events GROUP BY kind").fetchall()
+    )
+    print(
+        f"events: {stats.events} fetched; stored {events.get('review', 0)} reviews, "
+        f"{events.get('comment', 0)} comments"
+    )
+    print(f"commit logins: {stats.commits} commits fetched")
+    print(
+        f"github api: {stats.queries} queries, cost {stats.cost}, "
+        f"{stats.remaining} left (resets {stats.reset_at})"
+    )
 
 
 def cmd_people(args) -> int:
@@ -142,6 +182,12 @@ def main(argv=None) -> int:
 
     p = sub.add_parser("fetch", help="clone or update the repo and import new history")
     p.add_argument("config", help="project config, e.g. projects/oiio.toml")
+    p.add_argument(
+        "--full",
+        action="store_true",
+        help="refetch all GitHub data and flag what no longer exists",
+    )
+    p.add_argument("--no-github", action="store_true", help="git history only")
     p.set_defaults(func=cmd_fetch)
 
     p = sub.add_parser("people", help="show how identities were grouped into people")
@@ -162,6 +208,6 @@ def main(argv=None) -> int:
             f"error: `{cmd} ...` failed:\n{(e.stderr or '').strip()}", file=sys.stderr
         )
         return 1
-    except (OSError, ValueError) as e:
+    except (OSError, ValueError, github.GitHubError) as e:
         print(f"error: {e}", file=sys.stderr)
         return 1

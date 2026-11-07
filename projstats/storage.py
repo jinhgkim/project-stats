@@ -33,6 +33,67 @@ CREATE TABLE IF NOT EXISTS fetch_state (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
 );
+
+-- GitHub PRs and issues. Logins of bot accounts end in "[bot]"; deleted
+-- accounts ("ghost") have a NULL login. vanished_at is set when a full fetch
+-- no longer finds the item; the row is kept but left out of live_items.
+CREATE TABLE IF NOT EXISTS items (
+    id               TEXT PRIMARY KEY,
+    number           INTEGER NOT NULL,
+    kind             TEXT NOT NULL CHECK (kind IN ('pr', 'issue')),
+    author_login     TEXT,
+    title            TEXT NOT NULL,
+    body             TEXT NOT NULL,
+    state            TEXT NOT NULL,
+    state_reason     TEXT,
+    created_at       INTEGER NOT NULL,
+    updated_at       INTEGER NOT NULL,
+    closed_at        INTEGER,
+    merged_at        INTEGER,
+    merged_by_login  TEXT,
+    merge_commit_sha TEXT,
+    vanished_at      INTEGER
+);
+
+CREATE INDEX IF NOT EXISTS idx_items_kind ON items (kind, number);
+
+-- Current labels; replaced whenever the item is re-fetched.
+CREATE TABLE IF NOT EXISTS item_labels (
+    item_id TEXT NOT NULL REFERENCES items(id),
+    label   TEXT NOT NULL,
+    PRIMARY KEY (item_id, label)
+);
+
+-- Reviews and comments: who and when, no bodies. vanished_at is set when a
+-- re-fetch of the item no longer includes the event.
+CREATE TABLE IF NOT EXISTS events (
+    id           TEXT PRIMARY KEY,
+    item_id      TEXT NOT NULL REFERENCES items(id),
+    kind         TEXT NOT NULL CHECK (kind IN ('review', 'comment')),
+    author_login TEXT,
+    created_at   INTEGER NOT NULL,
+    review_state TEXT,
+    vanished_at  INTEGER
+);
+
+CREATE INDEX IF NOT EXISTS idx_events_item ON events (item_id);
+
+-- GitHub's view of each main-branch commit's authors and co-authors. email is
+-- raw (GitHub doesn't apply .mailmap); login is NULL when not linked.
+CREATE TABLE IF NOT EXISTS commit_logins (
+    sha   TEXT NOT NULL,
+    email TEXT NOT NULL,
+    name  TEXT NOT NULL,
+    login TEXT,
+    PRIMARY KEY (sha, email)
+);
+
+-- Analyses read these, so vanished rows are excluded in one place.
+CREATE VIEW IF NOT EXISTS live_items AS
+    SELECT * FROM items WHERE vanished_at IS NULL;
+CREATE VIEW IF NOT EXISTS live_events AS
+    SELECT e.* FROM events e JOIN items i ON i.id = e.item_id
+    WHERE e.vanished_at IS NULL AND i.vanished_at IS NULL;
 """
 
 
