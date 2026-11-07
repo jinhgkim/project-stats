@@ -385,7 +385,7 @@ const PS = (() => {
 
   const THEMES = ["auto", "light", "dark"];
   function applyTheme() {
-    const theme = THEMES.includes(state.theme) ? state.theme : "auto";
+    const theme = THEMES.includes(state.colors) ? state.colors : "auto";
     if (theme === "auto") delete document.documentElement.dataset.theme;
     else document.documentElement.dataset.theme = theme;
     document.getElementById("theme").textContent = `Theme: ${theme}`;
@@ -404,8 +404,8 @@ const PS = (() => {
     }
     const themeButton = document.getElementById("theme");
     themeButton.onclick = () => {
-      const next = THEMES[(THEMES.indexOf(state.theme || "auto") + 1) % THEMES.length];
-      state.theme = next === "auto" ? undefined : next;
+      const next = THEMES[(THEMES.indexOf(state.colors || "auto") + 1) % THEMES.length];
+      state.colors = next === "auto" ? undefined : next;
       applyTheme();
       writeHash();
       renderAll();
