@@ -4,7 +4,7 @@ import argparse
 import subprocess
 import sys
 
-from projstats import config, gitlog, storage
+from projstats import config, gitlog, identity, storage
 
 
 def cmd_fetch(args) -> int:
@@ -24,6 +24,27 @@ def cmd_fetch(args) -> int:
     return 0
 
 
+def cmd_people(args) -> int:
+    cfg = config.load(args.config)
+    conn = storage.connect(cfg.db_path)
+    identities = identity.load_identities(conn)
+    result = identity.group_people(identities, cfg.people.bots)
+    emails = len({i.email for i in identities})
+    print(f"people: {len(result.people)} (from {emails} emails)")
+
+    merged = [p for p in result.people if len(p.emails) > 1]
+    print(f"\nmerged ({len(merged)}):")
+    for p in merged:
+        print(f"  {p.name}  [{', '.join(p.reasons)}]")
+        for email in sorted(p.emails):
+            print(f"      {email}")
+
+    print(f"\nbots dropped ({len(result.bots)}):")
+    for p in result.bots:
+        print(f"  {p.name}  {', '.join(sorted(p.emails))}  ({p.activity})")
+    return 0
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(
         prog="projstats", description="Contributor retention and topic trends"
@@ -33,6 +54,10 @@ def main(argv=None) -> int:
     p = sub.add_parser("fetch", help="clone or update the repo and import new history")
     p.add_argument("config", help="project config, e.g. projects/oiio.toml")
     p.set_defaults(func=cmd_fetch)
+
+    p = sub.add_parser("people", help="show how identities were grouped into people")
+    p.add_argument("config", help="project config, e.g. projects/oiio.toml")
+    p.set_defaults(func=cmd_people)
 
     args = parser.parse_args(argv)
     try:

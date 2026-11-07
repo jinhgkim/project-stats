@@ -3,4 +3,4 @@ github = "AcademySoftwareFoundation/OpenImageIO"
 
 [people]
 # Extra names, emails, or logins to drop. Logins ending in "[bot]" are always dropped.
-bots = []
+bots = ["Copilot"]
