@@ -1,5 +1,6 @@
 """Load a project config file (projects/<name>.toml)."""
 
+import re
 import tomllib
 from dataclasses import dataclass, field, fields
 from pathlib import Path
@@ -17,6 +18,12 @@ class PeopleConfig:
 
 
 @dataclass
+class ReleasesConfig:
+    # Fully matches final release tags; captures major, minor, patch[, fourth].
+    tag_pattern: str = r"^v?(\d+)\.(\d+)\.(\d+)$"
+
+
+@dataclass
 class RetentionConfig:
     return_gap_days: int = 365  # back after at least this long away = "returning"
     core_quarters: int = 12  # core: active in at least this many distinct quarters
@@ -29,6 +36,7 @@ class Config:
     repo: RepoConfig = field(default_factory=RepoConfig)
     people: PeopleConfig = field(default_factory=PeopleConfig)
     retention: RetentionConfig = field(default_factory=RetentionConfig)
+    releases: ReleasesConfig = field(default_factory=ReleasesConfig)
 
     @property
     def slug(self) -> str:
@@ -60,7 +68,13 @@ def load(path: str | Path) -> Config:
     repo = _build(RepoConfig, data.pop("repo", {}), "[repo]")
     people = _build(PeopleConfig, data.pop("people", {}), "[people]")
     retention = _build(RetentionConfig, data.pop("retention", {}), "[retention]")
-    sections = {"repo": repo, "people": people, "retention": retention}
+    releases = _build(ReleasesConfig, data.pop("releases", {}), "[releases]")
+    sections = {
+        "releases": releases,
+        "repo": repo,
+        "people": people,
+        "retention": retention,
+    }
     cfg = _build(Config, {**data, **sections}, "top-level")
     owner, _, name = repo.github.partition("/")
     if not owner or not name or "/" in name:
@@ -71,4 +85,10 @@ def load(path: str | Path) -> Config:
             "[retention] needs return_gap_days > 0 and "
             "0 < regular_quarters < core_quarters"
         )
+    try:
+        groups = re.compile(releases.tag_pattern).groups
+    except re.error as e:
+        raise ValueError(f"[releases] tag_pattern is not a valid regex: {e}") from e
+    if groups < 3:
+        raise ValueError("[releases] tag_pattern must capture major, minor, and patch")
     return cfg

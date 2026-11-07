@@ -9,3 +9,8 @@ bots = ["Copilot"]
 return_gap_days = 365   # "returning" = back after at least this long away
 core_quarters = 12      # core: active in >= 12 distinct calendar quarters
 regular_quarters = 4    # regular: 4..11; casual: fewer, with >1 activity; one-time: 1 activity
+
+[releases]
+# Final release tags: Release-1.2.0 (older) and v3.2.1.0 (newer). Betas, RCs,
+# and spi-* tags don't match. Each major.minor's earliest match is its release.
+tag_pattern = '^(?:Release-|v)(\d+)\.(\d+)\.(\d+)(?:\.(\d+))?$'

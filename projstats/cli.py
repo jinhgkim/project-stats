@@ -6,7 +6,15 @@ import sys
 from collections import Counter
 from datetime import UTC, datetime
 
-from projstats import config, github, gitlog, identity, retention, storage
+from projstats import (
+    config,
+    github,
+    gitlog,
+    identity,
+    releases,
+    retention,
+    storage,
+)
 
 
 def cmd_fetch(args) -> int:
@@ -23,6 +31,15 @@ def cmd_fetch(args) -> int:
     print(f"commits: {s.new} new, {s.total} total (head {s.head[:7]})")
     for note in notes:
         print(f"  {note}")
+    found = releases.import_releases(conn, cfg.clone_path, cfg.releases.tag_pattern)
+    if found:
+        latest = found[-1]
+        print(
+            f"releases: {len(found)} (latest {latest.version}, "
+            f"tagged {latest.tag} on {_day(latest.released_at)})"
+        )
+    else:
+        print("releases: none match [releases] tag_pattern")
     if args.no_github:
         return 0
 

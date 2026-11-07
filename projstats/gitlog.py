@@ -62,8 +62,9 @@ def git(repo: Path, *args: str, stdin: str | None = None, check: bool = True):
 def sync_clone(url: str, path: Path, blobless: bool = True) -> str:
     """Clone a bare copy of `url` at `path`, or fetch new history into it."""
     if (path / "HEAD").exists():
-        # `clone --bare` sets no fetch refspec, so name the branches explicitly.
-        git(path, "fetch", "--prune", "--quiet", "origin", "+refs/heads/*:refs/heads/*")
+        # `clone --bare` sets no fetch refspec, so name branches and tags.
+        refspecs = ("+refs/heads/*:refs/heads/*", "+refs/tags/*:refs/tags/*")
+        git(path, "fetch", "--prune", "--quiet", "origin", *refspecs)
         return "updated"
     path.parent.mkdir(parents=True, exist_ok=True)
     cmd = ["git", "clone", "--bare", "--quiet"]

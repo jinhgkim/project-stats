@@ -88,6 +88,13 @@ CREATE TABLE IF NOT EXISTS commit_logins (
     PRIMARY KEY (sha, email)
 );
 
+-- One release per major.minor version: its earliest final tag (see releases.py).
+CREATE TABLE IF NOT EXISTS releases (
+    version     TEXT PRIMARY KEY,
+    tag         TEXT NOT NULL,
+    released_at INTEGER NOT NULL
+);
+
 -- Analyses read these, so vanished rows are excluded in one place.
 CREATE VIEW IF NOT EXISTS live_items AS
     SELECT * FROM items WHERE vanished_at IS NULL;
