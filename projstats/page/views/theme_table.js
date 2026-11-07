@@ -40,7 +40,7 @@ PS.registerView({
       for (const p of cols) {
         const s = p.themes.find(x => x.theme === t);
         if (s && s.share > 0 && (!peak || s.share > peak.share)) {
-          peak = {label: p.partial ? `${p.label} so far` : p.label, share: s.share};
+          peak = {label: p.partial && scheme.soFar ? `${p.label} so far` : p.label, share: s.share};
         }
       }
       return {
@@ -53,8 +53,8 @@ PS.registerView({
     figure.subtitle.textContent = "What's in each theme, and who works on it? Choose a theme to see its commits, PRs, and issues.";
     PS.fillHowto(figure, [
       `Documents: commits, PRs, and issues tagged with the theme${state.from || state.to ? " within the selected dates" : ""}.`,
-      `Peak: the ${scheme.name} with the theme's highest share. Periods follow Themes over time.`,
-      "Top people: the most activity (commits, reviews, comments, ...) on the theme's documents; the list below shows five.",
+      `Peak: the ${scheme.name} with the theme's highest share, and that share (periods follow Themes over time).`,
+      "Top people: most activity on the theme's documents; the list below shows five.",
     ]);
 
     if (!themes.length) {
@@ -64,8 +64,8 @@ PS.registerView({
     }
 
     if (figure.open === undefined) figure.open = PS.selectedTheme(state);
-    const head = PS.el("tr", {}, ["Theme", "Recent vs earlier", "Documents", "First seen", "Last seen",
-      "Peak", "Top people"].map(h => PS.el("th", {scope: "col"}, h)));
+    const head = PS.el("tr", {}, ["Theme", "Documents", "First seen", "Last seen",
+      "Peak", "Peak share", "Top people"].map(h => PS.el("th", {scope: "col"}, h)));
     const body = themes.map(x => {
       const button = PS.el("button", {
         type: "button", class: "link-button", "aria-expanded": String(figure.open === x.t),
@@ -78,15 +78,15 @@ PS.registerView({
       };
       return PS.el("tr", {class: x.t === PS.selectedTheme(state) ? "selected" : null},
         PS.el("td", {}, button),
-        PS.el("td", {class: "nowrap num"}, x.trend ? `${pct(x.trend.recentShare)} vs ${pct(x.trend.earlierShare)}` : "–"),
-        PS.el("td", {class: "num"}, x.docs.length),
+        PS.el("td", {}, x.docs.length),
         PS.el("td", {class: "nowrap"}, x.first === null ? "–" : day(x.first)),
         PS.el("td", {class: "nowrap"}, x.last === null ? "–" : day(x.last)),
-        PS.el("td", {}, x.peak ? `${x.peak.label} (${pct(x.peak.share)})` : "–"),
+        PS.el("td", {class: "nowrap"}, x.peak ? x.peak.label : "–"),
+        PS.el("td", {class: "nowrap"}, x.peak ? pct(x.peak.share) : "–"),
         PS.el("td", {class: "people"}, x.contributors.slice(0, 3)
           .map(c => `${PS.personName(c.person)} ${c.code + c.discussion}`).join(", ") || "–"));
     });
-    figure.plot.replaceChildren(PS.el("div", {class: "table-scroll"},
+    figure.plot.replaceChildren(PS.el("div", {class: "table-wrap"},
       PS.el("table", {class: "data themes"}, PS.el("thead", {}, head), PS.el("tbody", {}, body))));
 
     const open = themes.find(x => x.t === figure.open);

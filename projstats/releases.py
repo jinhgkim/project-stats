@@ -16,6 +16,12 @@ class Release:
     released_at: int
 
 
+def next_version(version: str) -> str | None:
+    """The next minor version ("3.2" -> "3.3"), or None if it isn't major.minor."""
+    major, _, minor = version.partition(".")
+    return f"{major}.{int(minor) + 1}" if major.isdigit() and minor.isdigit() else None
+
+
 def find_releases(tags: Iterable[tuple[str, int]], pattern: str) -> list[Release]:
     """Each major.minor version's earliest final tag, oldest release first.
 

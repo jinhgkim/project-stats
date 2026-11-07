@@ -69,7 +69,7 @@ class PeriodHelpersTest(unittest.TestCase):
     def test_keys_labels_bounds(self):
         t = ts("2021-05-20")
         self.assertEqual(period_label(period_key(t, "month"), "month"), "2021-05")
-        self.assertEqual(period_label(period_key(t, "quarter"), "quarter"), "2021Q2")
+        self.assertEqual(period_label(period_key(t, "quarter"), "quarter"), "2021 Q2")
         self.assertEqual(period_label(period_key(t, "year"), "year"), "2021")
         q = period_key(t, "quarter")
         self.assertEqual(
@@ -101,14 +101,14 @@ class PeriodCountsTest(unittest.TestCase):
 
     def test_quarterly(self):
         rows = table("quarter")
-        self.assertEqual(len(rows), 12)  # 2019Q2 .. 2022Q1, empty ones included
-        self.assertEqual(rows["2019Q2"], (1, 1, 0, 0, 0, 1))
-        self.assertEqual(rows["2019Q3"], (0, 0, 0, 0, 0, 0))
-        self.assertEqual(rows["2020Q1"], (2, 2, 0, 0, 1, 3))
-        self.assertEqual(rows["2020Q4"], (1, 1, 0, 0, 0, 1))
-        self.assertEqual(rows["2021Q1"], (1, 0, 0, 1, None, 1))  # ends 334d before
-        self.assertEqual(rows["2021Q2"], (1, 0, 1, 0, None, 1))  # ends < 365d before
-        self.assertEqual(rows["2022Q1"], (1, 0, 1, 0, None, 1))
+        self.assertEqual(len(rows), 12)  # 2019 Q2 .. 2022 Q1, empty ones included
+        self.assertEqual(rows["2019 Q2"], (1, 1, 0, 0, 0, 1))
+        self.assertEqual(rows["2019 Q3"], (0, 0, 0, 0, 0, 0))
+        self.assertEqual(rows["2020 Q1"], (2, 2, 0, 0, 1, 3))
+        self.assertEqual(rows["2020 Q4"], (1, 1, 0, 0, 0, 1))
+        self.assertEqual(rows["2021 Q1"], (1, 0, 0, 1, None, 1))  # ends 334d before
+        self.assertEqual(rows["2021 Q2"], (1, 0, 1, 0, None, 1))  # ends < 365d before
+        self.assertEqual(rows["2022 Q1"], (1, 0, 1, 0, None, 1))
 
     def test_monthly(self):
         rows = table("month")

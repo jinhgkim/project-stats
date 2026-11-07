@@ -117,34 +117,6 @@ PS.metrics = (() => {
     return {stats, dataEnd};
   }
 
-  const COHORT_OFFSETS = [1, 2, 5];
-
-  // People grouped by the year of their first activity, and how many were
-  // active 1, 2, and 5 years later (null until that year is complete).
-  // Mirrors retention.cohorts().
-  function cohorts(stats, dataEnd) {
-    const lastComplete = PS.periodScheme("year").key(dataEnd) - 1;
-    const groups = new Map();
-    for (const s of stats) {
-      const year = s.years[0];
-      if (!groups.has(year)) groups.set(year, []);
-      groups.get(year).push(s);
-    }
-    return [...groups.keys()].sort((a, b) => a - b).map(year => {
-      const members = groups.get(year);
-      const after = {};
-      for (const n of COHORT_OFFSETS) {
-        after[n] = year + n > lastComplete ? null
-          : members.filter(s => s.years.includes(year + n)).length;
-      }
-      return {
-        year, size: members.length,
-        oneTime: members.filter(s => s.segment === "one-time").length,
-        after, members,
-      };
-    });
-  }
-
   // Document index -> its theme indexes, and which documents are tagged.
   let docIndex = null;
   function themeIndex(data) {
@@ -289,7 +261,7 @@ PS.metrics = (() => {
   }
 
   return {
-    periodCounts, personStats, cohorts, themeIndex, themeTrends,
-    COHORT_OFFSETS, SEGMENTS: ["core", "regular", "casual", "one-time"],
+    periodCounts, personStats, themeIndex, themeTrends,
+    SEGMENTS: ["core", "regular", "casual", "one-time"],
   };
 })();

@@ -59,20 +59,11 @@ const PS = (() => {
   function registerView(view) { views.push(view); }
 
   // Tabs, in order; the first is the default. Only the open tab's views are
-  // drawn. An intro may depend on the data.
+  // drawn.
   const TABS = [
-    {id: "overview", label: "Overview",
-     intro: () => "The headline numbers, and how many people contribute over time."},
-    {id: "people", label: "People",
-     intro: () => "Who contributes, how often, and for how long. Activity means code (commits and " +
-       "PRs opened) and discussion (reviews, issues opened, and comments)."},
-    {id: "themes", label: "Themes",
-     intro: () => {
-       const days = data.themes.tagged.map(d => data.docs.day[d]);
-       return "What the work is about. A local language model tagged each commit, PR, and " +
-         "issue with up to 3 themes" +
-         (days.length ? `; tags cover documents from ${dayToText(Math.min(...days))} on.` : ".");
-     }},
+    {id: "overview", label: "Overview"},
+    {id: "people", label: "People"},
+    {id: "themes", label: "Themes"},
   ];
   const tabOf = view => view.tab || TABS[0].id;
   function activeTab() {
@@ -313,6 +304,12 @@ const PS = (() => {
   // A period scheme maps a day to a period key, and keys to labels and bounds.
   // Months, quarters, and years match projstats/retention.py; release cycles
   // match projstats/documents.py release_periods().
+  // "3.2" -> "3.3 dev" (matches projstats/releases.py next_version).
+  function openName(version) {
+    const [major, minor] = version.split(".");
+    return /^\d+$/.test(major) && /^\d+$/.test(minor) ? `${major}.${Number(minor) + 1} dev` : `after ${version}`;
+  }
+
   function periodScheme(kind) {
     if (kind === "release") {
       const days = data.releases.day;
@@ -321,19 +318,21 @@ const PS = (() => {
       return {
         kind, name: PERIOD_NAMES[kind],
         key: day => bisectRight(days, day),
-        label: k => (k < last ? `${versions[k]} cycle` : `after ${versions[last - 1]}`),
-        short: k => (k < last ? versions[k] : `after ${versions[last - 1]}`),
+        // The cycle in progress is named for the next version, so it needs no "so far".
+        label: k => (k < last ? versions[k] : openName(versions[last - 1])),
+        short: k => (k < last ? versions[k] : openName(versions[last - 1])),
+        soFar: false,
         bounds: k => [k === 0 ? null : days[k - 1], k < last ? days[k] : null],
       };
     }
     const n = MONTHS[kind];
     const label = k => (kind === "month"
       ? `${Math.floor(k / 12)}-${String((k % 12) + 1).padStart(2, "0")}`
-      : kind === "quarter" ? `${Math.floor(k / 4)}Q${(k % 4) + 1}` : String(k));
+      : kind === "quarter" ? `${Math.floor(k / 4)} Q${(k % 4) + 1}` : String(k));
     return {
       kind, name: PERIOD_NAMES[kind],
       key: day => Math.floor(monthIndex(day) / n),
-      label, short: label,
+      label, short: label, soFar: true,
       bounds: k => [monthStart(k * n), monthStart((k + 1) * n)],
     };
   }
@@ -449,7 +448,7 @@ const PS = (() => {
       });
       tab.panel = el("section", {
         class: "panel", id: `panel-${tab.id}`, role: "tabpanel", "aria-labelledby": `tab-${tab.id}`,
-      }, el("p", {class: "intro"}, tab.intro()), grid);
+      }, grid);
       for (const view of views.filter(v => tabOf(v) === tab.id)) {
         view.figure = makeFigure(view);
         grid.append(view.figure.root);

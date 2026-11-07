@@ -1,6 +1,5 @@
 // View: contributors per period. Stacked columns of new / returning /
-// continuing people (together: everyone active), and a line of people last
-// seen in each period, all on one people axis.
+// continuing people (together: everyone active).
 
 // A date range that starts or ends inside a period leaves it partial too.
 // metrics marks the period holding the data's end; a range that ends earlier
@@ -35,13 +34,13 @@ PS.registerView({
     figure.subtitle.textContent =
       `How many people contribute each ${scheme.name}, and are they newcomers, returners, or regulars?`;
     PS.fillHowto(figure, [
-      `Each column is everyone with activity in that ${scheme.name}, split three ways.`,
-      `New: their first activity${ranged ? " within the selected dates" : ""}.`,
-      `Returning: back after ${gap} or more days away. Continuing: everyone else.`,
-      `Last seen (line): people whose final activity falls in that ${scheme.name}. It stops ` +
-        `${gap} days before the end of the data, since recent people may still come back.`,
-      "Faded columns are partial: the period is still running, or the date range cuts it.",
-      "Vertical lines mark where a kind of data starts (e.g. GitHub reviews in 2016), so a jump there isn't growth.",
+      `Each column: everyone active in that ${scheme.name}, split three ways.`,
+      `New: first activity${ranged ? " within the selected dates" : ""}. ` +
+        `Returning: back after ${gap}+ days away. Continuing: everyone else.`,
+      `Last seen (hover, table): people whose final activity is in that ${scheme.name}; ` +
+        `unknown for the last ${gap} days, since recent people may return.`,
+      "Faded columns are partial: the period is running, or the date range cuts it.",
+      "Vertical lines: where a kind of data starts (e.g. reviews in 2016), so a jump there isn't growth.",
     ]);
 
     const series = [
@@ -49,11 +48,7 @@ PS.registerView({
       {id: "returning", name: "Returning", color: "var(--series-2)"},
       {id: "continuing", name: "Continuing", color: "var(--series-3)"},
     ];
-    const line = {id: "lastSeen", name: "Last seen", color: "var(--series-4)"};
-    PS.fillLegend(figure, [
-      ...series.map(s => ({...s, shape: "rect"})),
-      {...line, shape: "line"},
-    ]);
+    PS.fillLegend(figure, series.map(s => ({...s, shape: "rect"})));
     PS.fillTable(figure, [
       {name: scheme.name[0].toUpperCase() + scheme.name.slice(1),
        value: p => p.label + (partial(p) ? " (partial)" : "")},
@@ -72,14 +67,14 @@ PS.registerView({
     const height = 320;
     const top = 36, bottom = 26, left = 40;
     const innerH = height - top - bottom;
-    const yMax = d3.max(periods, p => Math.max(p.active, p.lastSeen || 0)) || 1;
+    const yMax = d3.max(periods, p => p.active) || 1;
     const y = d3.scaleLinear([0, yMax], [innerH, 0]).nice();
 
     // Direct labels for the last column, where they fit; the right margin is
     // sized to the longest one. On narrow screens they drop the suffix, then
     // go entirely (the legend names the colors), so the plot keeps its width.
     const last = periods[periods.length - 1];
-    const suffix = last.cut ? " (partial)" : last.partial ? " (so far)" : "";
+    const suffix = last.cut ? " (partial)" : last.partial && scheme.soFar ? " (so far)" : "";
     const labelsFor = suffix => {
       const out = [];
       let base = 0;
@@ -149,26 +144,6 @@ PS.registerView({
       });
     }
 
-    // Last seen: a 2px line, broken where it isn't known yet.
-    const known = periods.filter(p => p.lastSeen !== null);
-    g.append("path")
-      .datum(periods)
-      .attr("fill", "none").attr("stroke", line.color).attr("stroke-width", 2)
-      .attr("stroke-linejoin", "round").attr("stroke-linecap", "round")
-      .attr("d", d3.line().defined(p => p.lastSeen !== null).x(cx).y(p => y(p.lastSeen)));
-    const lastKnown = known[known.length - 1];
-    if (lastKnown) {
-      g.append("circle").attr("cx", cx(lastKnown)).attr("cy", y(lastKnown.lastSeen)).attr("r", 4)
-        .attr("fill", line.color).attr("stroke", "var(--surface-1)").attr("stroke-width", 2);
-      // Kept inside the plot, with a halo so it reads over the columns.
-      const text = `Last seen ${lastKnown.lastSeen}`;
-      const half = PS.textWidth(text, 12) / 2;
-      g.append("text").attr("class", "label halo")
-        .attr("x", Math.max(half, Math.min(innerW - half, cx(lastKnown))))
-        .attr("y", y(lastKnown.lastSeen) - 10).attr("text-anchor", "middle")
-        .text(text);
-    }
-
     // Data-source markers: where an included kind's data starts.
     const markers = PS.sourceMarkers(PS.selectedKinds())
       .map(m => ({...m, key: scheme.key(m.day)}))
@@ -195,7 +170,7 @@ PS.registerView({
       const show = event => PS.showTooltip(event, `${p.label}${partial(p) ? " (partial)" : ""}`, [
         {name: "active", value: p.active},
         ...series.map(s => ({name: s.name.toLowerCase(), value: p[s.id], color: s.color})),
-        {name: "last seen", value: p.lastSeen === null ? "not known yet" : p.lastSeen, color: line.color},
+        {name: "last seen", value: p.lastSeen === null ? "not known yet" : p.lastSeen},
         {name: "activity", value: p.activity},
       ]);
       hits.push(hit.append("rect").attr("class", "hit")

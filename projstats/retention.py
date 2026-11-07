@@ -157,7 +157,7 @@ def period_label(key: int, period: str) -> str:
     if period == "month":
         return f"{key // 12}-{key % 12 + 1:02d}"
     if period == "quarter":
-        return f"{key // 4}Q{key % 4 + 1}"
+        return f"{key // 4} Q{key % 4 + 1}"
     return str(key)
 
 

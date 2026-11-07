@@ -47,11 +47,6 @@ PS.onStart(() => {
     compare(`segments: ${kindsName(want.kinds)}`, sorted, expected);
   }
 
-  const {stats, dataEnd} = PS.metrics.personStats(rowsOf(null), data, rules, gap);
-  const cohorts = PS.metrics.cohorts(stats, dataEnd)
-    .map(c => [c.year, c.size, c.oneTime, ...PS.metrics.COHORT_OFFSETS.map(n => c.after[n])]);
-  compare("cohorts: all kinds", cohorts, ref.cohorts);
-
   // Theme shares per covered release cycle (to 6 decimals, as exported) and
   // trend labels.
   if (ref.theme_trends) {

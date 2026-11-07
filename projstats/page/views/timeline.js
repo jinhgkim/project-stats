@@ -1,5 +1,5 @@
 // View: one row per person, ordered by first activity, with a mark for each
-// period they were active in. Segment toggles choose who is listed.
+// period they were active in. One segment at a time is listed.
 
 PS.registerView({
   id: "timeline",
@@ -12,42 +12,44 @@ PS.registerView({
     const scheme = PS.periodScheme(state.period);
     const {stats} = PS.metrics.personStats(rows, data, rules, gap);
     const ids = PS.metrics.SEGMENTS;
-    const shown = new Set(state.tl === undefined ? ["core", "regular"]
-      : state.tl.split(",").filter(s => ids.includes(s)));
+    // One segment, core by default. Older links may list several: the first counts.
+    const picked = (state.tl || "").split(",").find(s => ids.includes(s)) || "core";
     const counts = Object.fromEntries(ids.map(id => [id, stats.filter(s => s.segment === id).length]));
 
-    // Segment toggles, built once and kept in step with the state.
+    // One choice of segment, built once and kept in step with the state. Arrow
+    // keys move and select, like a radio group.
     const names = {core: "Core", regular: "Regular", casual: "Casual", "one-time": "One-time"};
     if (!figure.toggles) {
       figure.toggles = ids.map(id => {
-        const button = PS.el("button", {type: "button"});
-        button.onclick = () => {
-          const next = new Set(shown);
-          if (next.has(id)) next.delete(id); else next.add(id);
-          const list = ids.filter(s => next.has(s));
-          set({tl: list.join(",") === "core,regular" ? undefined : list.join(",")});
-        };
+        const button = PS.el("button", {type: "button", role: "radio"});
+        const choose = () => { if (figure.picked !== id) set({tl: id === "core" ? undefined : id}); };
+        button.onclick = choose;
+        button.onfocus = choose;
         return button;
       });
-      figure.controls.append(PS.el("span", {class: "label"}, "Show"), ...figure.toggles);
+      PS.rovingFocus(figure.toggles, 0, "ArrowLeft", "ArrowRight");
+      figure.controls.append(PS.el("span", {class: "label", id: "timeline-show"}, "Show"),
+        PS.el("span", {class: "choice", role: "radiogroup", "aria-labelledby": "timeline-show"}, ...figure.toggles));
     }
+    figure.picked = picked;
     figure.toggles.forEach((button, i) => {
       const label = `${names[ids[i]]} ${counts[ids[i]]}`;
       button.textContent = label;
       button.setAttribute("data-label", label);
-      button.setAttribute("aria-pressed", String(shown.has(ids[i])));
+      button.setAttribute("aria-checked", String(ids[i] === picked));
+      button.setAttribute("tabindex", ids[i] === picked ? 0 : -1);
     });
 
-    const people = stats.filter(s => shown.has(s.segment))
+    const people = stats.filter(s => s.segment === picked)
       .sort((a, b) => a.first - b.first || PS.personName(a.person).localeCompare(PS.personName(b.person)));
 
     figure.subtitle.textContent = "When was each person active, and who is still around?";
     PS.fillHowto(figure, [
-      "One row per person in the chosen segments, ordered by when they started.",
-      `Each mark is a ${scheme.name} with activity; its shade shows how much (see the legend). ` +
-        "Periods follow Group by in Contributors per period, on the Overview tab.",
-      `Bold names: active in the last ${gap} days of the data shown.`,
-      "Segments use the cutoffs set in Segments. Hover a row for that person's numbers.",
+      "One row per person in the chosen segment, ordered by first activity.",
+      `Each mark: a ${scheme.name} with activity; the shade shows how much (legend). ` +
+        "Periods follow Group by on the Overview tab.",
+      `Bold names: active in the last ${gap} days of data.`,
+      "Segments use the cutoffs set in Segments. Hover a row for numbers.",
     ]);
     const BINS = [2, 6, 21];
     const binOf = n => BINS.filter(t => n >= t).length;

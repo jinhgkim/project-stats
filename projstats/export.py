@@ -190,18 +190,6 @@ def reference(cfg, people, docs, activity, rels, links, conn) -> dict:
             }
         )
 
-    all_stats = retention.person_stats(by_day, r)
-    data_end = max((a.ts for a in by_day), default=0)
-    cohorts = [
-        [
-            c.year,
-            c.size,
-            c.one_time,
-            *(c.active_after[n] for n in retention.COHORT_OFFSETS),
-        ]
-        for c in retention.cohorts(all_stats, data_end)
-    ]
-
     theme_trends = None
     if rels:
         day_docs = [dataclasses.replace(d, ts=_day_start(d.ts)) for d in docs]
@@ -230,7 +218,6 @@ def reference(cfg, people, docs, activity, rels, links, conn) -> dict:
     return {
         "period_counts": period_counts,
         "segments": segments,
-        "cohorts": cohorts,
         "theme_trends": theme_trends,
     }
 

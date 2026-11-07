@@ -143,16 +143,15 @@ class ExportTest(unittest.TestCase):
         self.assertEqual(
             ref["period_counts"][3]["rows"],
             [
-                ["1.0 cycle", 2, 2, 0, 0, None, 4, False],
-                ["after 1.0", 1, 0, 0, 1, None, 1, True],
+                ["1.0", 2, 2, 0, 0, None, 4, False],
+                ["1.1 dev", 1, 0, 0, 1, None, 1, True],
             ],
         )
         # Ann has 4 of 6 activities and bo 2: 80% needs both, so both are core.
         self.assertEqual(ref["segments"][0]["segments"], {"core": [2, 2]})
-        self.assertEqual(ref["cohorts"], [[2020, 2, 0, None, None, None]])
         # The release splits 2020: pr#5 and issue#6 fall in the 1.0 cycle.
         self.assertEqual(
-            [p["label"] for p in ref["theme_trends"]["periods"]], ["1.0 cycle"]
+            [p["label"] for p in ref["theme_trends"]["periods"]], ["1.0"]
         )
 
     def test_excluded_items_leave_activity_out(self):

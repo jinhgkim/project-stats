@@ -9,6 +9,13 @@ PS.registerFilter({
     const github = PS.data.sources.pr;
     const endText = end === null ? null : PS.dayToText(end);
     const yearsBack = n => endText && `${Number(endText.slice(0, 4)) - n}${endText.slice(4)}`;
+    // n whole months before the end, with the day cut to the month's length.
+    const monthsBack = n => {
+      if (!endText) return null;
+      const [y, m, d] = endText.split("-").map(Number);
+      const lastDay = new Date(Date.UTC(y, m - 1 - n + 1, 0)).getUTCDate();
+      return new Date(Date.UTC(y, m - 1 - n, Math.min(d, lastDay))).toISOString().slice(0, 10);
+    };
     const now = new Date();
     const today = [now.getFullYear(), now.getMonth() + 1, now.getDate()]
       .map((n, i) => String(n).padStart(i ? 2 : 4, "0")).join("-");
@@ -22,6 +29,7 @@ PS.registerFilter({
       },
       endText && {id: "3y", name: "Last 3 years", from: yearsBack(3), to: undefined},
       endText && {id: "1y", name: "Last 1 year", from: yearsBack(1), to: undefined},
+      endText && {id: "3m", name: "Last 3 months", from: monthsBack(3), to: undefined},
     ].filter(Boolean);
 
     const select = PS.el("select", {"aria-label": "Date range"},

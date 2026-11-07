@@ -1,21 +1,18 @@
-// View: each theme's share of activity per release cycle or year, as a
-// heatmap. Only periods that are mostly tagged get columns. Whether a theme
-// is rising or fading shows on hover, not as row labels.
+// View: each theme's share of activity per release cycle, as a heatmap. Only
+// periods that are mostly tagged get columns. Whether a theme is rising or
+// fading shows on hover, not as row labels.
 
-// The theme views' own period ("tp" in the URL): release cycles or years.
-// Theme counts per month or quarter are too small to compare, so these views
-// don't follow Group by.
-PS.themePeriod = state => {
-  const hasReleases = PS.data.releases.day.length > 0;
-  return state.tp === "year" || !hasReleases ? "year" : "release";
-};
+// The theme views' period: release cycles, or years when a project has no
+// releases. Theme counts per month or quarter are too small to compare, so
+// these views don't follow Group by.
+PS.themePeriod = () => (PS.data.releases.day.length ? "release" : "year");
 
 PS.registerView({
   id: "themes-over-time",
   title: "Themes over time",
   tab: "themes",
   order: 50,
-  render(figure, {data, rowsExcept, state, set}) {
+  render(figure, {data, rowsExcept, state}) {
     if (!data.themes.name.length) {
       figure.plot.replaceChildren(PS.el("p", {class: "empty"}, "No themes yet; run projstats tag."));
       return;
@@ -28,20 +25,6 @@ PS.registerView({
     const selected = PS.selectedTheme(state);
     const cols = r.periods.filter(p => p.covered && p.activity > 0);
     const untagged = r.periods.filter(p => !p.covered && p.activity > 0).length;
-
-    // Period switch, built once.
-    if (!figure.periodButtons) {
-      const options = [["release", "Release cycle"], ["year", "Year"]]
-        .filter(([id]) => id === "year" || data.releases.day.length);
-      figure.periodButtons = options.map(([id, name]) => {
-        const button = PS.el("button", {type: "button", "data-label": name}, name);
-        button.onclick = () => set({tp: id === "release" ? undefined : id});
-        button.dataset.period = id;
-        return button;
-      });
-      figure.controls.append(PS.el("span", {class: "label"}, "Periods"), ...figure.periodButtons);
-    }
-    figure.periodButtons.forEach(b => b.setAttribute("aria-pressed", String(b.dataset.period === kind)));
 
     const name = t => data.themes.name[t];
     const shareOf = (p, t) => {
@@ -56,15 +39,15 @@ PS.registerView({
       .sort((a, b) => rankShare(b) - rankShare(a) || name(a).localeCompare(name(b)));
 
     const compared = r.recent === null || !r.earlier.length ? null
-      : `Hover a theme to see its trend: ${r.periods[r.recent].label} compared with ${r.earlier.length === 1 ? r.periods[r.earlier[0]].label
-        : `${r.earlier.length} earlier ${scheme.name}s`}: rising at 1.5× the share or more, fading at 0.67× ` +
-        "or less, and too few under 5 documents.";
+      : `Hover a theme for its trend: ${r.periods[r.recent].label} vs ${r.earlier.length === 1 ? r.periods[r.earlier[0]].label
+        : `${r.earlier.length} earlier ${scheme.name}s`}. Rising: 1.5× the share or more. Fading: 0.67× or less. ` +
+        "Under 5 documents: too few to tell.";
     figure.subtitle.textContent = "Which areas of work are getting more attention, and which less?";
     PS.fillHowto(figure, [
       `Each cell: the theme's share of all activity on tagged documents in that ${scheme.name}.`,
       "A PR's reviews, comments, and linked commits count toward its themes; a document with two themes counts for both.",
       compared,
-      "Use the Activity filter to compare Code (commits and PRs opened) with Discussion (reviews, issues opened, and comments).",
+      "Use the Activity filter to compare Code with Discussion.",
       untagged ? `${untagged} earlier ${scheme.name}${untagged === 1 ? " isn't" : "s aren't"} tagged yet, so ` +
         `${untagged === 1 ? "it's" : "they're"} left out.` : null,
     ].filter(Boolean));
@@ -77,7 +60,7 @@ PS.registerView({
     PS.fillTable(figure, [
       {name: "Theme", value: t => name(t)},
       ...cols.map(p => ({
-        name: p.label + (p.partial ? " (so far)" : ""),
+        name: p.label + (p.partial && scheme.soFar ? " (so far)" : ""),
         value: t => (shareOf(p, t) ? pct(shareOf(p, t).share) : "–"),
       })),
     ], themes);
@@ -97,21 +80,24 @@ PS.registerView({
     const x0 = nameW;
     const cellW = Math.min(110, (width - x0) / cols.length);
     const rowH = 24, top = 34;
-    const height = top + themes.length * rowH;
+    const height = themes.length * rowH;
 
+    // The column labels stay put while the rows scroll.
+    const header = d3.create("svg").attr("viewBox", `0 0 ${width} ${top}`).attr("height", top)
+      .attr("aria-hidden", "true");
+    cols.forEach((p, i) => {
+      const cx = x0 + i * cellW + cellW / 2;
+      header.append("text").attr("x", cx).attr("y", 14).attr("text-anchor", "middle").text(p.short);
+      if (p.partial && scheme.soFar) header.append("text").attr("x", cx).attr("y", 27).attr("text-anchor", "middle").text("so far");
+    });
     const svg = d3.create("svg")
       .attr("viewBox", `0 0 ${width} ${height}`).attr("height", height)
       .attr("role", "group")
       .attr("aria-label", `Themes over time by ${scheme.name}. Arrow keys move between themes; the Table button shows the numbers.`);
-    cols.forEach((p, i) => {
-      const cx = x0 + i * cellW + cellW / 2;
-      svg.append("text").attr("x", cx).attr("y", 14).attr("text-anchor", "middle").text(p.short);
-      if (p.partial) svg.append("text").attr("x", cx).attr("y", 27).attr("text-anchor", "middle").text("so far");
-    });
 
     const hits = [];
     themes.forEach((t, row) => {
-      const y = top + row * rowH;
+      const y = row * rowH;
       const mid = y + rowH / 2;
       const g = svg.append("g");
       const trend = r.trends.get(t);
@@ -133,7 +119,7 @@ PS.registerView({
           .attr("dominant-baseline", "middle").text(pct(s.share));
       });
 
-      const all = cols.map(p => ({name: p.label + (p.partial ? " so far" : ""), value: shareOf(p, t) ? pct(shareOf(p, t).share) : "–"}));
+      const all = cols.map(p => ({name: p.label + (p.partial && scheme.soFar ? " so far" : ""), value: shareOf(p, t) ? pct(shareOf(p, t).share) : "–"}));
       const show = event => {
         let lines = all;
         if (event instanceof Event && "clientX" in event) {
@@ -165,6 +151,9 @@ PS.registerView({
         .on("pointerleave blur", PS.hideTooltip).node());
     });
     PS.rovingFocus(hits, Math.max(0, themes.indexOf(selected)), "ArrowUp", "ArrowDown");
-    figure.plot.replaceChildren(svg.node());
+    const scroll = PS.el("div", {class: "scroll"});
+    scroll.addEventListener("scroll", PS.hideTooltip, {passive: true});
+    scroll.append(svg.node());
+    figure.plot.replaceChildren(header.node(), scroll);
   },
 });

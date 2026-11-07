@@ -1,6 +1,7 @@
-// View: people per segment (core, regular, casual, one-time), with how many
-// are active now, beside each segment's share of all activity. Choosing a
-// segment lists its people; the Overview tiles also open lists here.
+// View: how concentrated the activity is. People ranked by activity along the
+// bottom, the share of all activity they add up to on the left, and the
+// segments (core, regular, casual, one-time) as zones along the curve.
+// Choosing a zone lists its people; the Overview tiles also open lists here.
 
 PS.registerView({
   id: "segments",
@@ -14,11 +15,9 @@ PS.registerView({
     const {stats, dataEnd} = PS.metrics.personStats(rows, data, rules, gap);
     const ranged = Boolean(state.from || state.to);
     const pctOf = v => `${Math.round(v * 100)}%`;
-    const names = {
-      core: `Core (top ${pctOf(rules.core)})`,
-      regular: `Regular (up to ${pctOf(rules.regular)})`,
-      casual: "Casual (the rest)",
-      "one-time": "One-time (1 activity)",
+    const names = {core: "Core", regular: "Regular", casual: "Casual", "one-time": "One-time"};
+    const zoneColor = {
+      core: "var(--seq-3)", regular: "var(--seq-2)", casual: "var(--seq-1)", "one-time": "var(--wash)",
     };
     const total = stats.reduce((sum, s) => sum + s.activity, 0);
     const segments = PS.metrics.SEGMENTS.map(id => {
@@ -31,20 +30,22 @@ PS.registerView({
       };
     });
 
-    figure.subtitle.textContent = "Who does most of the work, and how many people help out now and then?";
+    const core = segments[0];
+    figure.subtitle.textContent = core.people
+      ? `Who does most of the work? ${core.people} ${core.people === 1 ? "person does" : "people do"} ` +
+        `${Math.round(core.share * 100)}% of the activity.`
+      : "Who does most of the work, and how many people help out now and then?";
     PS.fillHowto(figure, [
-      `People are ranked by how much activity they have${ranged ? " within the selected dates" : ""}. ` +
-        `Core: the top people who together do ${pctOf(rules.core)} of it. Regular: the next people, ` +
-        `up to ${pctOf(rules.regular)}. Casual: everyone else with more than one activity. One-time: exactly one.`,
-      `People tied at a cutoff join the group above it, so core can do a little more than ${pctOf(rules.core)}.`,
-      "The groups follow the filters: with only Reviews on, core means the people who do most of the reviewing.",
-      `Active now (solid part of each bar): any activity in the last ${gap} days of the data shown.`,
-      "Right: each segment's actual share of all activity.",
+      `People are ranked by activity${ranged ? " within the selected dates" : ""}. The curve adds them up: ` +
+        "its height is the share of all activity done by that many top people.",
+      `Core: the fewest top people who reach ${pctOf(rules.core)}. Regular: the next, up to ${pctOf(rules.regular)}. ` +
+        "Casual: everyone else with more than one activity. One-time: exactly one.",
+      `Ties at a cutoff join the higher group, so core can pass ${pctOf(rules.core)}.`,
+      "Zones follow the filters: with only Discussion on, core is who does most of it.",
+      "The bottom axis is stretched (each step right multiplies the people) so the top people stay readable.",
+      `Active now (hover, lists): activity in the last ${gap} days of data. Click a zone to list its people.`,
     ]);
-    PS.fillLegend(figure, [
-      {name: "Active now", color: "var(--series-1)", shape: "rect"},
-      {name: "Not active now", color: "var(--series-1-faint)", shape: "rect"},
-    ]);
+    PS.fillLegend(figure, PS.metrics.SEGMENTS.map(id => ({name: names[id], color: zoneColor[id], shape: "rect"})));
     const pct = v => `${(v * 100).toFixed(1)}%`;
     PS.fillTable(figure, [
       {name: "Segment", value: s => s.name},
@@ -72,101 +73,118 @@ PS.registerView({
     }
 
     const width = Math.max(320, figure.plot.clientWidth || figure.root.clientWidth - 32);
-    // Narrow screens put each segment's name on its own line above the bars.
-    const stacked = width < 560;
-    const labelW = stacked ? 0 : Math.min(200, 8 + Math.max(...segments.map(s => PS.textWidth(s.name, 12))));
-    const rowH = stacked ? 42 : 28, barH = 16, top = 22;
-    const barTop = stacked ? 20 : (rowH - barH) / 2;
-    const height = top + segments.length * rowH;
-    const gapX = 24;
-    const panelW = (width - labelW - gapX) / 2;
-    const peopleText = s => `${s.people} · ${s.current} now`;
-    const shareText = s => pct(s.share);
-    // Each panel leaves room for its value labels after the longest bar.
-    const peopleRoom = 8 + Math.max(...segments.map(s => PS.textWidth(peopleText(s), 12)));
-    const shareRoom = 8 + PS.textWidth("100.0%", 12);
-    const xPeople = d3.scaleLinear([0, d3.max(segments, s => s.people) || 1], [0, Math.max(20, panelW - peopleRoom)]);
-    const xShare = d3.scaleLinear([0, 1], [0, Math.max(20, panelW - shareRoom)]);
-    const shareX0 = labelW + panelW + gapX;
+    const height = 300;
+    const margin = {top: 40, right: 16, bottom: 46, left: 56};
+    const innerW = width - margin.left - margin.right;
+    const innerH = height - margin.top - margin.bottom;
+    const n = stats.length;
+    // Rank r sits at x(r) and spans x(r - 0.5) to x(r + 0.5).
+    const x = d3.scaleLog([0.5, n + 0.5], [0, innerW]);
+    const y = d3.scaleLinear([0, 1], [innerH, 0]);
+    let running = 0;
+    const cum = stats.map(p => { running += p.activity; return total ? running / total : 0; });
+    const zones = segments.map(sg => {
+      const lo = stats.findIndex(p => p.segment === sg.id);
+      return {...sg, lo, hi: lo < 0 ? -1 : stats.findLastIndex(p => p.segment === sg.id)};
+    }).filter(z => z.people > 0);
+    const zoneX0 = z => x(z.lo + 0.5);
+    const zoneW = z => x(z.hi + 1.5) - x(z.lo + 0.5);
 
     const svg = d3.create("svg")
       .attr("viewBox", `0 0 ${width} ${height}`).attr("height", height)
       .attr("role", "group")
-      .attr("aria-label", "Segments. Arrow keys move between segments; the Table button shows the numbers.");
-    svg.append("text").attr("x", labelW).attr("y", 12).text("People");
-    svg.append("text").attr("x", shareX0).attr("y", 12).text(stacked ? "Share of activity" : "Share of all activity");
+      .attr("aria-label", "Segments. Arrow keys move between zones; the Table button shows the numbers.");
+    const g = svg.append("g").attr("transform", `translate(${margin.left},${margin.top})`);
 
-    const roundRight = (x0, y0, w, h, r) => {
-      r = Math.min(r, w, h / 2);
-      return `M${x0},${y0}H${x0 + w - r}Q${x0 + w},${y0} ${x0 + w},${y0 + r}` +
-        `V${y0 + h - r}Q${x0 + w},${y0 + h} ${x0 + w - r},${y0 + h}H${x0}Z`;
-    };
+    zones.forEach(z => g.append("rect").attr("x", zoneX0(z)).attr("y", 0).attr("width", zoneW(z))
+      .attr("height", innerH).attr("fill", zoneColor[z.id]));
+    g.append("g").attr("class", "grid")
+      .selectAll("line").data([0, 0.25, 0.5, 0.75, 1]).join("line")
+      .attr("x1", 0).attr("x2", innerW).attr("y1", d => y(d)).attr("y2", d => y(d));
+    g.append("g").attr("class", "axis")
+      .call(d3.axisLeft(y).tickValues([0, 0.25, 0.5, 0.75, 1]).tickFormat(d3.format(".0%")).tickSize(0).tickPadding(6))
+      .call(a => a.select(".domain").remove());
+    const xTicks = [1, 3, 10, 30, 100, 300, 1000, 3000].filter(t => t <= n);
+    g.append("g").attr("class", "axis").attr("transform", `translate(0,${innerH})`)
+      .call(d3.axisBottom(x).tickValues(xTicks.length ? xTicks : [1]).tickFormat(v => String(v)).tickSize(0).tickPadding(8));
+    g.append("text").attr("class", "label").attr("x", innerW / 2).attr("y", innerH + 38)
+      .attr("text-anchor", "middle").text("People, most active first");
+    g.append("text").attr("class", "label").attr("transform", "rotate(-90)")
+      .attr("x", -innerH / 2).attr("y", -44).attr("text-anchor", "middle").text("Share of all activity");
+
+    // Zone names above the plot, as many as fit.
+    zones.forEach(z => {
+      const cx = zoneX0(z) + zoneW(z) / 2;
+      const count = `${z.people} ${z.people === 1 ? "person" : "people"}`;
+      const room = zoneW(z) - 2;
+      if (PS.textWidth(z.name, 12) > room) return;
+      g.append("text").attr("class", z.id === listId ? "label current" : "label")
+        .attr("x", cx).attr("y", -24).attr("text-anchor", "middle").text(z.name);
+      if (PS.textWidth(count, 11) <= room) {
+        g.append("text").attr("x", cx).attr("y", -10).attr("text-anchor", "middle").text(count);
+      }
+    });
+
+    // The curve: 0 people reach 0%; each person adds their own activity.
+    const points = [[0, 0], ...stats.map((p, i) => [x(i + 1), cum[i]])];
+    g.append("path").datum(points)
+      .attr("fill", "none").attr("stroke", "var(--text-primary)").attr("stroke-width", 2)
+      .attr("stroke-linejoin", "round").attr("stroke-linecap", "round")
+      .attr("d", d3.line().x(d => d[0]).y(d => y(d[1])));
+
+    // Where core and regular end: how many people it took, and the total share.
+    zones.filter(z => z.id === "core" || z.id === "regular").forEach(z => {
+      const rank = z.hi + 1;
+      const cx = x(rank), cy = y(cum[z.hi]);
+      g.append("circle").attr("cx", cx).attr("cy", cy).attr("r", 4)
+        .attr("fill", "var(--text-primary)").attr("stroke", "var(--surface-1)").attr("stroke-width", 2);
+      const text = `${rank} ${rank === 1 ? "person" : "people"}: ${pct(cum[z.hi])}`;
+      const w = PS.textWidth(text, 12);
+      const right = cx + 8 + w <= innerW;
+      g.append("text").attr("class", "label halo").attr("x", right ? cx + 8 : cx - 8).attr("y", cy + 16)
+        .attr("text-anchor", right ? "start" : "end").text(text);
+    });
+
+    const picked = zones.find(z => z.id === listId);
+    if (picked) {
+      g.append("rect").attr("x", zoneX0(picked)).attr("y", 0).attr("width", zoneW(picked)).attr("height", innerH)
+        .attr("fill", "none").attr("stroke", "var(--text-primary)").attr("stroke-width", 1.5)
+        .attr("pointer-events", "none");
+    }
+
     const hits = [];
-    segments.forEach((s, i) => {
-      const y = top + i * rowH;
-      const by = y + barTop;
-      const valueY = by + barH / 2;
-      const g = svg.append("g");
-      g.append("text").attr("class", s.id === listId ? "label current" : "label")
-        .attr("x", 0).attr("y", stacked ? y + 10 : valueY)
-        .attr("dominant-baseline", "middle").text(s.name);
-
-      // People: the active-now part first, then the rest, 2px apart.
-      const wNow = xPeople(s.current);
-      const wAll = xPeople(s.people);
-      if (s.people > 0) {
-        if (s.current > 0) {
-          const now = s.current === s.people ? roundRight(labelW, by, wNow, barH, 4)
-            : `M${labelW},${by}h${Math.max(0, wNow - 1)}v${barH}h${-Math.max(0, wNow - 1)}Z`;
-          g.append("path").attr("d", now).attr("fill", "var(--series-1)");
-        }
-        if (s.current < s.people) {
-          const x0 = labelW + (s.current > 0 ? wNow + 1 : 0);
-          g.append("path").attr("d", roundRight(x0, by, Math.max(1, labelW + wAll - x0), barH, 4))
-            .attr("fill", "var(--series-1-faint)");
-        }
-      }
-      g.append("text").attr("class", "label").attr("x", labelW + wAll + 6).attr("y", valueY)
-        .attr("dominant-baseline", "middle").text(peopleText(s));
-
-      const wShare = xShare(s.share);
-      if (wShare > 0) {
-        g.append("path").attr("d", roundRight(shareX0, by, Math.max(1, wShare), barH, 4))
-          .attr("fill", "var(--series-1)");
-      }
-      g.append("text").attr("class", "label").attr("x", shareX0 + wShare + 6).attr("y", valueY)
-        .attr("dominant-baseline", "middle").text(shareText(s));
-
-      const show = event => PS.showTooltip(event, s.name, [
-        {name: "people", value: s.people},
-        {name: "active now", value: s.current, color: "var(--series-1)"},
-        {name: "activity", value: s.activity},
-        {name: "share of activity", value: pct(s.share)},
+    zones.forEach((z, i) => {
+      const show = event => PS.showTooltip(event, z.name, [
+        {name: "people", value: z.people},
+        {name: "active now", value: z.current},
+        {name: "activity", value: z.activity},
+        {name: "share of activity", value: pct(z.share)},
       ]);
       hits.push(g.append("rect").attr("class", "hit clickable")
-        .attr("x", 0).attr("y", y).attr("width", width).attr("height", rowH)
+        .attr("x", zoneX0(z)).attr("y", 0).attr("width", zoneW(z)).attr("height", innerH)
         .attr("role", "button")
-        .attr("aria-label", `${s.name}: ${s.people} people, ${s.current} active now, ` +
-          `${pct(s.share)} of activity. Press Enter to ${s.id === listId ? "close the list" : "list them"}.`)
+        .attr("aria-label", `${z.name}: ${z.people} people, ${z.current} active now, ` +
+          `${pct(z.share)} of activity. Press Enter to ${z.id === listId ? "close the list" : "list them"}.`)
         .on("pointermove", show)
         .on("focus", event => { figure.focusRow = i; show(event.currentTarget); })
         .on("pointerleave blur", PS.hideTooltip)
         .on("click", () => {
-          toggleList(s.id);
+          toggleList(z.id);
           if (state.list) figure.details.scrollIntoView({behavior: "smooth", block: "nearest"});
         })
         .on("keydown", event => {
           if (event.key !== "Enter" && event.key !== " ") return;
           event.preventDefault();
           figure.refocus = true;
-          toggleList(s.id);
+          toggleList(z.id);
         }).node());
     });
-    PS.rovingFocus(hits, figure.focusRow || 0, "ArrowUp", "ArrowDown");
+    const focusAt = Math.min(figure.focusRow || 0, hits.length - 1);
+    PS.rovingFocus(hits, focusAt, "ArrowLeft", "ArrowRight");
     figure.plot.replaceChildren(svg.node());
     if (figure.refocus) {
       figure.refocus = false;
-      hits[figure.focusRow || 0].focus();
+      hits[focusAt].focus();
     }
 
     if (listId === null) return;
@@ -177,9 +195,9 @@ PS.registerView({
     const close = PS.el("button", {type: "button"}, "Close");
     close.onclick = () => set({list: undefined});
     // Active now is a filled dot before the name (hollow when not); activity
-    // is a bar on one scale for the whole list, with the share on hover.
+    // is a bar on one scale for the whole list, with the share beside it.
     const head = [["Person", "left"], ...(showSegment ? [["Segment", "left"]] : []), ["Activity", "left"],
-      ["First"], ["Last"], ["Active quarters"]];
+      ["Share"], ["First"], ["Last"]];
     const day = d => PS.dayToText(d);
     const most = Math.max(1, ...people.map(p => p.activity));
     const status = on => PS.el("span", {class: on ? "status on" : "status", title: on ? "active now" : "not active now"},
@@ -189,20 +207,18 @@ PS.registerView({
       return PS.el("tr", {},
         PS.el("td", {}, status(p.current), PS.personLink(p.person)),
         showSegment ? PS.el("td", {class: "left"}, p.segment) : null,
-        PS.el("td", {class: "left", title: `${share} of activity`},
+        PS.el("td", {class: "left"},
           PS.el("div", {class: "cellbar"},
             PS.el("span", {class: "num"}, p.activity.toLocaleString("en-US")),
             PS.el("span", {class: "track"},
-              PS.el("span", {class: "bar", style: `width: ${(p.activity / most) * 100}%`})),
-            PS.el("span", {class: "sr-only"}, `, ${share} of activity`))),
+              PS.el("span", {class: "bar", style: `width: ${(p.activity / most) * 100}%`})))),
+        PS.el("td", {}, share),
         PS.el("td", {}, day(p.first)),
-        PS.el("td", {}, day(p.last)),
-        PS.el("td", {}, p.quarters));
+        PS.el("td", {}, day(p.last)));
     });
     const key = PS.el("p", {class: "status-key"},
       PS.el("span", {class: "status on", "aria-hidden": "true"}), `active in the last ${gap} days`,
-      PS.el("span", {class: "status", "aria-hidden": "true"}), "not",
-      PS.el("span", {class: "hint"}, "· hover a bar for its share of activity"));
+      PS.el("span", {class: "status", "aria-hidden": "true"}), "not");
     figure.details.replaceChildren(
       PS.el("div", {class: "details-head"},
         PS.el("h3", {}, `${list.title} · ${people.length} ${people.length === 1 ? "person" : "people"} · ` +

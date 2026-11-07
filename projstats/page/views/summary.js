@@ -1,6 +1,5 @@
 // View: headline numbers at the top of the page, from the same filtered rows
-// as the views below. People tiles open the list of those people (in
-// Segments); the theme tile jumps to Themes over time.
+// as the views below. Each tile opens the list of those people (in Segments).
 
 PS.registerView({
   id: "summary",
@@ -8,16 +7,16 @@ PS.registerView({
   tab: "overview",
   bare: true,
   order: 0,
-  render(figure, {data, rows, rowsExcept, state}) {
+  render(figure, {data, rows, state}) {
     const gap = data.settings.return_gap_days;
     const rules = PS.segmentRules(state);
     const {stats, dataEnd} = PS.metrics.personStats(rows, data, rules, gap);
-    const tile = (value, what, more, target, isText = false) => {
+    const tile = (value, what, more, target) => {
       const button = PS.el("button", {type: "button", class: "tile"},
-        PS.el("span", {class: isText ? "value text" : "value"}, value),
+        PS.el("span", {class: "value"}, value),
         PS.el("span", {class: "what"}, what),
         more ? PS.el("span", {class: "more"}, more) : null);
-      button.onclick = () => (Array.isArray(target) ? PS.jumpTo(...target) : PS.jumpTo(target));
+      button.onclick = () => PS.jumpTo(...target);
       return button;
     };
     if (!stats.length) {
@@ -39,23 +38,6 @@ PS.registerView({
         "the core: see who they are", ["details-segments", {list: "core"}]),
     ];
 
-    // The fastest-rising theme, if trends are known.
-    if (data.themes.name.length) {
-      const kind = PS.themePeriod(state);
-      const r = PS.metrics.themeTrends(rowsExcept("theme"), data, PS.periodScheme(kind),
-        {skipInProgress: kind === "release"});
-      const rising = [...r.trends].filter(([, t]) => t.label === "rising")
-        .sort((a, b) => b[1].recentShare - a[1].recentShare)[0];
-      if (rising) {
-        const [t, trend] = rising;
-        const pct = v => `${(v * 100).toFixed(1)}%`;
-        const earlier = r.earlier.length === 1 ? r.periods[r.earlier[0]].label : "earlier";
-        tiles.push(tile(data.themes.name[t], `rising: ${pct(trend.earlierShare)} → ${pct(trend.recentShare)} of activity`,
-          `${earlier} → ${r.periods[r.recent].label}`, "view-themes-over-time", true));
-      } else {
-        tiles.push(tile("–", "no rising theme", "needs two tagged periods to compare", "view-themes-over-time", true));
-      }
-    }
     figure.plot.replaceChildren(PS.el("div", {class: "tiles"}, tiles));
   },
 });

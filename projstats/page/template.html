@@ -21,7 +21,7 @@
     --series-3: #1baf7a;
     --series-4: #eda100;
     --series-1-faint: #86b6ef;
-    /* One-hue blue ramps: seq-* for the cohort heatmap (top three take the
+    /* One-hue blue ramps: seq-* for the theme heatmap (top three take the
        inverse ink), ord-* for timeline marks (lightest still clears 2:1). */
     --seq-1: #cde2fb; --seq-2: #9ec5f4; --seq-3: #6da7ec;
     --seq-4: #256abf; --seq-5: #184f95; --seq-6: #0d366b;
@@ -121,7 +121,6 @@
   #tabs .tab:hover { color: var(--text-primary); background: var(--wash); }
   #tabs .tab[aria-selected="true"] { color: var(--text-primary); font-weight: 600; border-bottom-color: var(--series-1); }
   section.panel { padding-top: 14px; }
-  section.panel > .intro { color: var(--text-secondary); margin: 0 0 12px; max-width: 80ch; }
   figure.view, .details { scroll-margin-top: calc(var(--bar-h, 0px) + 12px); }
   .grid > figure.view.half.expanded { grid-column: 1 / -1; }
   .plot .hit.clickable { cursor: pointer; }
@@ -135,7 +134,7 @@
   #filter-dates { flex-basis: 100%; }
   .filter { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
   .filter > .label { color: var(--text-secondary); margin-right: 2px; }
-  .filter .choice { display: inline-flex; gap: 6px; }
+  .choice { display: inline-flex; gap: 6px; }
   .filter label.check { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
   .filter label.check input { margin: 0; width: 16px; height: 16px; accent-color: var(--series-1); }
   #views { padding-bottom: 40px; }
@@ -157,7 +156,6 @@
     border: 1px solid var(--border); display: flex; flex-direction: column; gap: 2px;
   }
   .tile .value { font-size: 26px; font-weight: 600; line-height: 1.2; font-variant-numeric: tabular-nums; }
-  .tile .value.text { font-size: 18px; }
   .tile .what { color: var(--text-secondary); }
   .tile .more { color: var(--text-muted); font-size: 12px; }
   .legend { display: flex; flex-wrap: wrap; gap: 4px 16px; color: var(--text-secondary); margin: 4px 0 8px; }
@@ -188,11 +186,17 @@
   .plot .scroll { max-height: 400px; overflow-y: auto; }
   .plot .label.current { fill: var(--text-primary); font-weight: 600; }
   .filter .note { color: var(--text-muted); }
-  .table-scroll { overflow-x: auto; }
   table.data.themes th, table.data.themes td { text-align: left; vertical-align: top; }
-  table.data.themes td.num, table.data.themes th:nth-child(2), table.data.themes th:nth-child(3) { text-align: right; }
+  /* Fixed column widths, as shares of the table; narrow screens scroll sideways. */
+  table.data.themes { table-layout: fixed; min-width: 900px; }
+  table.data.themes th:nth-child(1) { width: 20%; }
+  table.data.themes th:nth-child(2) { width: 8%; }
+  table.data.themes th:nth-child(3), table.data.themes th:nth-child(4) { width: 9%; }
+  table.data.themes th:nth-child(5) { width: 7%; }
+  table.data.themes th:nth-child(6) { width: 8%; }
+  table.data.themes td:first-child, table.data.themes td:first-child .link-button { white-space: nowrap; }
   table.data.themes td.nowrap { white-space: nowrap; }
-  table.data.themes td.people { color: var(--text-secondary); min-width: 160px; }
+  table.data.themes td.people { color: var(--text-secondary); }
   table.themes tr.selected td { background: var(--wash); }
   .link-button { border: none; background: none; padding: 0; color: var(--series-1); font-weight: 600; text-align: left; }
   .link-button:hover { background: none; text-decoration: underline; }
@@ -217,7 +221,6 @@
   .status-key { margin: 6px 0 0; color: var(--text-secondary); font-size: 13px; }
   .status-key .status { margin-left: 2px; margin-right: 5px; }
   .status-key .status:not(:first-child) { margin-left: 14px; }
-  .status-key .hint { margin-left: 10px; color: var(--text-muted); }
   table.data.people th.left, table.data.people td.left { text-align: left; }
   table.data.people td:first-child { white-space: nowrap; }
   .cellbar { display: flex; align-items: center; gap: 8px; }

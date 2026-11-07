@@ -15,6 +15,8 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
+from projstats.releases import next_version
+
 FENCED_CODE = re.compile(r"```.*?(?:```|\Z)", re.S)
 HTML_COMMENT = re.compile(r"<!--.*?(?:-->|\Z)", re.S)
 URL = re.compile(r"https?://\S+")
@@ -39,7 +41,7 @@ class Document:
 
 @dataclass(frozen=True)
 class Period:
-    label: str  # "2024", or "3.2 cycle" for the work released in 3.2
+    label: str  # "2024", or "3.2" for the work released in 3.2
     start: int | None  # None: open-ended
     end: int | None
     partial: bool = False  # still in progress
@@ -108,14 +110,14 @@ def release_periods(releases) -> list[Period]:
     rs = sorted(releases, key=lambda r: r.released_at)
     if not rs:
         raise ValueError("no releases found; check [releases] tag_pattern")
-    periods = [Period(f"{rs[0].version} cycle", None, rs[0].released_at)]
+    periods = [Period(rs[0].version, None, rs[0].released_at)]
     for before, release in zip(rs, rs[1:], strict=False):
         periods.append(
-            Period(f"{release.version} cycle", before.released_at, release.released_at)
+            Period(release.version, before.released_at, release.released_at)
         )
-    periods.append(
-        Period(f"after {rs[-1].version}", rs[-1].released_at, None, partial=True)
-    )
+    upcoming = next_version(rs[-1].version)
+    label = f"{upcoming} dev" if upcoming else f"after {rs[-1].version}"
+    periods.append(Period(label, rs[-1].released_at, None, partial=True))
     return periods
 
 

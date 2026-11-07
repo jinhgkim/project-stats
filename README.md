@@ -8,8 +8,8 @@ The output is one self-contained web page with three tabs:
 
 - **Overview:** summary numbers and contributors per month, quarter, year,
   or release cycle.
-- **People:** retention, cohorts, segments (core, regular, casual,
-  one-time), and a timeline of each person's activity.
+- **People:** how concentrated the activity is, with segments (core,
+  regular, casual, one-time), and a timeline of each person's activity.
 - **Themes:** each theme's share of activity per release cycle, plus rising
   and fading themes.
 
