@@ -1,0 +1,23 @@
+[project]
+name = "projstats"
+version = "0.1.0"
+description = "Contributor retention and topic trends from a project's git and GitHub history"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.scripts]
+projstats = "projstats.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["projstats"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]

@@ -1,0 +1,9 @@
+# Fetched history, database, generated pages
+data/
+*.db
+
+# Python
+__pycache__/
+*.egg-info/
+.venv/
+.ruff_cache/
