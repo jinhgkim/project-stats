@@ -211,6 +211,21 @@ def is_catch_all(name: str, project_names: list[str]) -> bool:
     return False
 
 
+def strip_aliases(name: str) -> str:
+    """The name without an " (also: ...)" copied from the theme list."""
+    return name.split(" (also:", 1)[0].strip()
+
+
+def known_prefix(name: str, registry: Registry) -> str:
+    """An existing theme's name, if `name` is that name plus a copied
+    ": description"; otherwise `name` unchanged."""
+    if registry.lookup(name) is None and ": " in name:
+        prefix = name.split(": ", 1)[0].strip()
+        if registry.lookup(prefix) is not None:
+            return prefix
+    return name
+
+
 def parse(
     result: dict, local_ids: dict, max_per_doc: int, project_names: list[str] = ()
 ) -> tuple[dict, dict]:
@@ -225,20 +240,22 @@ def parse(
             continue
         kept, keys = [], set()
         for name in names:
-            if not isinstance(name, str) or not name.strip():
+            if not isinstance(name, str):
                 continue
+            name = strip_aliases(name)
             key = theme_key(name)
             if not key or key in GENERIC or key in keys:
                 continue
             if is_catch_all(name, project_names):
                 continue
             keys.add(key)
-            kept.append(name.strip())
+            kept.append(name)
         tags[ref] = kept[:max_per_doc]
     descriptions = {}
     for item in result.get("new_themes") or []:
         if isinstance(item, dict) and isinstance(item.get("name"), str):
-            descriptions[theme_key(item["name"])] = str(item.get("description", ""))
+            key = theme_key(strip_aliases(item["name"]))
+            descriptions[key] = str(item.get("description", ""))
     return tags, descriptions
 
 
@@ -319,7 +336,11 @@ def tag_documents(
                 result, local_ids, cfg.max_per_doc, cfg.project_names
             )
             tags = {
-                ref: [n for n in names if not registry.is_blocked(n)]
+                ref: _unique(
+                    n
+                    for n in (known_prefix(n, registry) for n in names)
+                    if not registry.is_blocked(n)
+                )
                 for ref, names in tags.items()
             }
             names = {n for ns in tags.values() for n in ns}
@@ -348,6 +369,15 @@ def tag_documents(
     stats.themes_created = registry.created
     stats.aliases_added = registry.aliased
     return stats
+
+
+def _unique(names: Iterator[str]) -> list[str]:
+    seen, out = set(), []
+    for name in names:
+        if theme_key(name) not in seen:
+            seen.add(theme_key(name))
+            out.append(name)
+    return out
 
 
 def _system(cfg: ThemesConfig) -> str:

@@ -208,6 +208,21 @@ class TagDocumentsTest(TaggerTestCase):
             ["Docs", "OpenEXR support", "Tests"],
         )
 
+    def test_copied_theme_list_extras_map_to_the_existing_theme(self):
+        self.run_tagger(FakeTagger(), docs=[DOCS[1]])
+        llm = FakeTagger(
+            extra=[
+                "OpenEXR support (also: EXR)",
+                "OpenEXR support: Reading and writing EXR files",
+                "Deep images: a new theme with a colon",
+            ]
+        )
+        self.run_tagger(llm, docs=[DOCS[1]], force=True)
+        self.assertEqual(
+            [name for _, name in self.tags()],
+            ["Deep images: a new theme with a colon", "OpenEXR support"],
+        )
+
     def test_deleted_theme_is_not_assigned_again(self):
         self.run_tagger(FakeTagger())
         themes.delete(self.conn, "OpenEXR support")
@@ -246,12 +261,22 @@ class PieceTest(unittest.TestCase):
     def test_parse_ignores_unknown_ids_and_bad_items(self):
         result = {
             "documents": [
-                {"id": "d1", "themes": ["OpenEXR support", "openexr SUPPORT", ""]},
+                {
+                    "id": "d1",
+                    "themes": [
+                        "OpenEXR support",
+                        "openexr SUPPORT (also: EXR)",
+                        "",
+                        " (also: nothing)",
+                    ],
+                },
                 {"id": "d9", "themes": ["Unknown doc"]},
                 "not a dict",
                 {"id": "[d2]", "themes": "not a list"},
             ],
-            "new_themes": [{"name": "OpenEXR support", "description": "EXR files"}],
+            "new_themes": [
+                {"name": "OpenEXR support (also: EXR)", "description": "EXR files"}
+            ],
         }
         tags, descriptions = parse(result, {"d1": "pr#1", "d2": "pr#2"}, 3)
         self.assertEqual(tags, {"pr#1": ["OpenEXR support"]})
