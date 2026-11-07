@@ -5,7 +5,7 @@ import re
 import unittest
 
 from projstats import storage, themes
-from projstats.themes import Registry, resolve
+from projstats.themes import Registry, resolve, theme_key
 from tests.fakes import FakeProvider
 
 
@@ -57,6 +57,21 @@ class ThemesTestCase(unittest.TestCase):
                 "SELECT doc_ref FROM doc_themes WHERE theme_id = ?", (theme_id,)
             )
         )
+
+
+class ThemeKeyTest(unittest.TestCase):
+    def test_ignores_case_punctuation_and_accents(self):
+        cases = {
+            "OpenEXR Support": "openexr support",
+            "  openexr-support!": "openexr support",
+            "OpenEXR_support": "openexr support",
+            "C++ API": "c++ api",
+            "C# bindings": "c# bindings",
+            "Café Résumé": "cafe resume",
+            "Straße": "strasse",
+        }
+        for name, key in cases.items():
+            self.assertEqual(theme_key(name), key, name)
 
 
 class ResolveTest(ThemesTestCase):

@@ -8,6 +8,7 @@ import json
 import re
 import sqlite3
 import time
+import unicodedata
 import uuid
 from dataclasses import dataclass
 
@@ -49,8 +50,10 @@ MERGE_SCHEMA = {
 
 
 def theme_key(name: str) -> str:
-    """Comparison key: case- and punctuation-insensitive, but keeps + and #."""
-    return re.sub(r"[^0-9a-z+#]+", " ", name.casefold()).strip()
+    """Comparison key: ignores case, accents, and punctuation, but keeps + and #."""
+    decomposed = unicodedata.normalize("NFKD", name.casefold())
+    plain = "".join(c for c in decomposed if not unicodedata.combining(c))
+    return re.sub(r"[^0-9a-z+#]+", " ", plain).strip()
 
 
 class Registry:
