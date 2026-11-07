@@ -187,6 +187,13 @@ class ActivityConfigTest(unittest.TestCase):
         self.assertEqual(cfg.activity.exclude_items, [3905, 12])
         self.assertEqual(config.load(self.write("")).activity.exclude_items, [])
 
+    def test_leave_out_option_takes_logins(self):
+        cfg = config.load(self.write('[people]\nleave_out_option = ["lgritz"]\n'))
+        self.assertEqual(cfg.people.leave_out_option, ["lgritz"])
+        for bad in ('"lgritz"', "[1]", '[""]'):
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                config.load(self.write(f"[people]\nleave_out_option = {bad}\n"))
+
     def test_segment_shares_must_be_ordered(self):
         bad = "[retention]\ncore_share = 0.9\nregular_share = 0.8\n"
         with self.assertRaises(ValueError):

@@ -48,6 +48,20 @@ def _short_ref(doc: documents.Document) -> str:
     return doc.ref.split("#", 1)[1] if "#" in doc.ref else doc.ref
 
 
+def _people_by_login(people: list, logins: list[str]) -> list[int]:
+    """Person indexes for `logins` (any of a person's logins, any case)."""
+    out = []
+    for login in logins:
+        want = login.casefold()
+        found = [
+            i for i, p in enumerate(people) if want in {x.casefold() for x in p.logins}
+        ]
+        if not found:
+            raise ValueError(f"[people] leave_out_option: no one has login {login!r}")
+        out.extend(i for i in found if i not in out)
+    return out
+
+
 def build(conn: sqlite3.Connection, cfg: Config, generated: str | None = None) -> dict:
     people = identity.load_people(conn, cfg.people.bots)
     person_index = {p.key: i for i, p in enumerate(people.people)}
@@ -73,6 +87,8 @@ def build(conn: sqlite3.Connection, cfg: Config, generated: str | None = None) -
         for t in ids
     )
 
+    optional = _people_by_login(people.people, cfg.people.leave_out_option)
+
     sources = {}
     for a in activity:
         sources[a.kind] = min(sources.get(a.kind, a.ts), a.ts)
@@ -84,6 +100,7 @@ def build(conn: sqlite3.Connection, cfg: Config, generated: str | None = None) -
             "generated": generated or datetime.now(UTC).strftime("%Y-%m-%d"),
             "data_end": day(max(a.ts for a in activity)) if activity else None,
             "excluded_items": sorted(cfg.activity.exclude_items),
+            "leave_out_option": optional,
         },
         "settings": dataclasses.asdict(cfg.retention),
         "kinds": kinds,

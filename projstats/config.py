@@ -15,6 +15,8 @@ class RepoConfig:
 @dataclass
 class PeopleConfig:
     bots: list[str] = field(default_factory=list)
+    # GitHub logins the page offers a checkbox to leave out of every count.
+    leave_out_option: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -115,6 +117,9 @@ def load(path: str | Path) -> Config:
     owner, _, name = repo.github.partition("/")
     if not owner or not name or "/" in name:
         raise ValueError(f'[repo] github must be "owner/name", got {repo.github!r}')
+    opt = people.leave_out_option
+    if not isinstance(opt, list) or not all(isinstance(x, str) and x for x in opt):
+        raise ValueError("[people] leave_out_option must be a list of GitHub logins")
     ex = activity.exclude_items
     if not isinstance(ex, list) or not all(type(n) is int and n > 0 for n in ex):
         raise ValueError("[activity] exclude_items must be PR or issue numbers")

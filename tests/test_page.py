@@ -23,7 +23,7 @@ class PageTest(unittest.TestCase):
         views = ("summary", "period_counts", "segments", "cohorts", "timeline")
         for view in (*views, "themes_over_time", "theme_table"):
             self.assertIn(f"views/{view}.js", names)
-        for name in ("segment_rules", "theme"):
+        for name in ("people", "segment_rules", "theme"):
             self.assertIn(f"filters/{name}.js", names)
         filters = [n for n in names if n.startswith("filters/")]
         self.assertEqual(filters, sorted(filters))

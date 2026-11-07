@@ -41,7 +41,7 @@ const PS = (() => {
   }
 
   // The keys the top-bar filters own, cleared by Reset.
-  const FILTER_KEYS = ["from", "to", "kinds", "theme"];
+  const FILTER_KEYS = ["from", "to", "kinds", "without", "theme"];
 
 
 

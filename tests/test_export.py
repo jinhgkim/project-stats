@@ -160,6 +160,16 @@ class ExportTest(unittest.TestCase):
         self.assertEqual(data["project"]["excluded_items"], [5])
         self.assertEqual(data["reference"]["period_counts"][0]["rows"][0][6], 3)
 
+    def test_leave_out_option_maps_logins_to_people(self):
+        self.assertEqual(self.data["project"]["leave_out_option"], [])
+        self.cfg.people = PeopleConfig(leave_out_option=["ANN"])
+        data = export.build(self.conn, self.cfg, generated="2026-11-06")
+        (index,) = data["project"]["leave_out_option"]
+        self.assertEqual(data["people"]["login"][index], "ann")
+        self.cfg.people = PeopleConfig(leave_out_option=["nobody"])
+        with self.assertRaises(ValueError):
+            export.build(self.conn, self.cfg, generated="2026-11-06")
+
     def test_write_reports_sizes(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "out.json"
