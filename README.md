@@ -89,6 +89,12 @@ Overview and People tabs work without it.
 
 `page --open` uses macOS's `open` command to show the page.
 
+## Read-only by design
+
+projstats only reads from GitHub. `GhClient` (`projstats/github.py`) refuses
+any GraphQL mutation or subscription before calling `gh`. For a hard limit,
+log `gh` in with a read-only token.
+
 ## Usage
 
 Themes are optional. For analytics only, set `enabled = false` under

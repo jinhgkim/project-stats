@@ -328,5 +328,32 @@ class GhClientTest(unittest.TestCase):
             self.run_with(*[(1, "", "HTTP 504")] * 3)
 
 
+class ReadOnlyTest(unittest.TestCase):
+    def client(self):
+        calls = []
+
+        def fake_run(cmd, **kw):
+            calls.append(cmd)
+            return subprocess.CompletedProcess(cmd, 0, '{"data": {}}', "")
+
+        return GhClient(run=fake_run), calls
+
+    def test_mutations_never_reach_gh(self):
+        client, calls = self.client()
+        for query in (
+            'mutation { addComment(input: {body: "x"}) { clientMutationId } }',
+            "query { x }\nmutation { y }",
+            "subscription { z }",
+        ):
+            with self.assertRaisesRegex(GitHubError, "only reads"):
+                client.query(query, {})
+        self.assertEqual(calls, [])
+
+    def test_the_word_in_a_string_or_comment_is_fine(self):
+        client, calls = self.client()
+        client.query('query { search(query: "mutation fix") { x } } # no mutation', {})
+        self.assertEqual(len(calls), 1)
+
+
 if __name__ == "__main__":
     unittest.main()

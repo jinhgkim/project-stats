@@ -6,6 +6,7 @@ stops halfway can simply be rerun.
 """
 
 import json
+import re
 import sqlite3
 import subprocess
 import time
@@ -87,6 +88,13 @@ class GitHubError(RuntimeError):
     pass
 
 
+def refuse_writes(query: str) -> None:
+    """projstats only reads from GitHub: refuse a mutation or subscription."""
+    code = re.sub(r'"(?:[^"\\]|\\.)*"|#[^\n]*', " ", query)
+    if re.search(r"\b(mutation|subscription)\b", code):
+        raise GitHubError("refusing a GraphQL mutation: projstats only reads")
+
+
 class TransientError(GitHubError):
     """A failure worth retrying with a smaller page (timeouts, 5xx)."""
 
@@ -114,6 +122,7 @@ class GhClient:
         self.run = run  # replaced in tests
 
     def query(self, query: str, variables: dict) -> dict:
+        refuse_writes(query)
         body = json.dumps({"query": query, "variables": variables})
         message = ""
         for attempt in range(self.retries):
