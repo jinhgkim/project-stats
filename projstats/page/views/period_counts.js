@@ -1,5 +1,6 @@
 // View: contributors per period. Stacked columns of new / returning /
-// continuing people (together: everyone active).
+// continuing people (together: everyone active). Choosing a column lists its
+// people under those three groups.
 
 // A date range that starts or ends inside a period leaves it partial too.
 // metrics marks the period holding the data's end; a range that ends earlier
@@ -23,7 +24,7 @@ PS.registerView({
   title: "Contributors per period",
   tab: "overview",
   order: 10,
-  render(figure, {data, rows, state}) {
+  render(figure, {data, rows, state, set}) {
     const gap = data.settings.return_gap_days;
     const scheme = PS.periodScheme(state.period);
     const periods = PS.metrics.periodCounts(rows, data, scheme, gap);
@@ -39,6 +40,7 @@ PS.registerView({
         `Returning: back after ${gap}+ days away. Continuing: everyone else.`,
       `Last seen (hover, table): people whose final activity is in that ${scheme.name}; ` +
         `unknown for the last ${gap} days, since recent people may return.`,
+      `Click a column to list its people.`,
       "Faded columns are partial: the period is running, or the date range cuts it.",
       "Vertical lines: where a kind of data starts (e.g. reviews in 2016), so a jump there isn't growth.",
     ]);
@@ -57,6 +59,12 @@ PS.registerView({
       {name: "Last seen", value: p => p.lastSeen},
       {name: "Activity", value: p => p.activity},
     ], periods);
+
+    // The open column is `pick` in the URL, as `<period>:<key>`, so changing
+    // the period closes it.
+    const picked = periods.find(p => state.pick === `${scheme.kind}:${p.key}`) || null;
+    figure.details.hidden = picked === null;
+    const toggle = p => set({pick: picked === p ? undefined : `${scheme.kind}:${p.key}`});
 
     if (!periods.length) {
       figure.plot.replaceChildren(PS.el("p", {class: "empty"}, "No activity matches the filters."));
@@ -173,19 +181,63 @@ PS.registerView({
         {name: "last seen", value: p.lastSeen === null ? "not known yet" : p.lastSeen},
         {name: "activity", value: p.activity},
       ]);
-      hits.push(hit.append("rect").attr("class", "hit")
+      hits.push(hit.append("rect").attr("class", "hit clickable")
         .attr("x", x(p.key) - (x.step() - x.bandwidth()) / 2).attr("y", 0)
         .attr("width", x.step()).attr("height", innerH)
-        .attr("role", "img")
+        .attr("role", "button")
         .attr("aria-label", `${p.label}${partial(p) ? " (partial)" : ""}: ${p.active} active, ` +
           `${p.new} new, ${p.returning} returning, ${p.continuing} continuing, ` +
-          `last seen ${p.lastSeen === null ? "not known yet" : p.lastSeen}`)
+          `last seen ${p.lastSeen === null ? "not known yet" : p.lastSeen}. ` +
+          `Press Enter to ${p === picked ? "close the list" : "list them"}.`)
         .on("pointermove", show)
         .on("focus", event => { figure.focusKey = p.key; show(event.currentTarget); })
-        .on("pointerleave blur", PS.hideTooltip).node());
+        .on("pointerleave blur", PS.hideTooltip)
+        .on("click", () => {
+          toggle(p);
+          if (!figure.details.hidden) figure.details.scrollIntoView({behavior: "smooth", block: "nearest"});
+        })
+        .on("keydown", event => {
+          if (event.key !== "Enter" && event.key !== " ") return;
+          event.preventDefault();
+          figure.refocus = true;
+          figure.focusKey = p.key;
+          toggle(p);
+        }).node());
     });
     PS.rovingFocus(hits, periods.findIndex(p => p.key === figure.focusKey), "ArrowLeft", "ArrowRight");
 
+    if (picked) {
+      g.append("rect").attr("x", x(picked.key) - (x.step() - x.bandwidth()) / 2).attr("y", 0)
+        .attr("width", x.step()).attr("height", innerH).attr("rx", 3)
+        .attr("fill", "none").attr("stroke", "var(--text-primary)").attr("stroke-width", 1.5)
+        .attr("pointer-events", "none");
+    }
+
     figure.plot.replaceChildren(svg.node());
+    if (figure.refocus) {
+      figure.refocus = false;
+      hits[periods.findIndex(p => p.key === figure.focusKey)].focus();
+    }
+
+    if (picked === null) return;
+    const name = `${picked.label}${partial(picked) ? " (partial)" : ""}`;
+    const close = PS.el("button", {type: "button"}, "Close");
+    close.onclick = () => set({pick: undefined});
+    const group = s => {
+      const members = picked.people.filter(m => m.kind === s.id)
+        .sort((a, b) => b.activity - a.activity || PS.personName(a.person).localeCompare(PS.personName(b.person)));
+      return PS.el("section", {class: "group"},
+        PS.el("h4", {}, PS.swatch({color: s.color, shape: "rect"}), `${s.name} · ${members.length}`),
+        members.length
+          ? PS.el("ul", {}, members.map(m => PS.el("li", {},
+            PS.personLink(m.person), PS.el("span", {class: "count"}, m.activity.toLocaleString("en-US")))))
+          : PS.el("p", {class: "empty"}, "No one"));
+    };
+    figure.details.replaceChildren(
+      PS.el("div", {class: "details-head"},
+        PS.el("h3", {}, `${name} · ${picked.active} ${picked.active === 1 ? "person" : "people"}`),
+        close),
+      PS.el("p", {class: "meta"}, "Most active first; the number is each person's activity in this " + scheme.name + "."),
+      PS.el("div", {class: "groups"}, series.map(group)));
   },
 });

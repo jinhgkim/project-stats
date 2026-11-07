@@ -26,11 +26,11 @@ PS.metrics = (() => {
       out.set(key, {
         key, label: scheme.label(key), short: scheme.short(key), start, end,
         active: 0, new: 0, returning: 0, continuing: 0, lastSeen: null,
-        activity: 0, partial: key === maxKey,
+        activity: 0, partial: key === maxKey, people: [],
       });
     }
     const lastSeen = new Map();
-    for (const list of days.values()) {
+    for (const [person, list] of days) {
       list.sort((a, b) => a - b);
       let prev = null;
       let i = 0;
@@ -41,9 +41,9 @@ PS.metrics = (() => {
         const row = out.get(key);
         row.active += 1;
         row.activity += j - i + 1;
-        if (prev === null) row.new += 1;
-        else if (list[i] - prev >= gapDays) row.returning += 1;
-        else row.continuing += 1;
+        const kind = prev === null ? "new" : list[i] - prev >= gapDays ? "returning" : "continuing";
+        row[kind] += 1;
+        row.people.push({person, kind, activity: j - i + 1});
         prev = list[j];
         i = j + 1;
       }

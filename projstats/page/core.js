@@ -490,7 +490,7 @@ const PS = (() => {
   return {
     data, get state() { return state; }, set, start,
     registerFilter, registerView, onStart,
-    el, fillTable, fillLegend, fillHowto, jumpTo, openTab, showTooltip, hideTooltip, textWidth, rovingFocus,
+    el, fillTable, fillLegend, swatch, fillHowto, jumpTo, openTab, showTooltip, hideTooltip, textWidth, rovingFocus,
     personName, personLink, dayToDate,
     dayToText, dateToDay, periodScheme, sourceMarkers, markerLabels, fitText, selectedKinds, KIND_NAMES,
   };
