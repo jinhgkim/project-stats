@@ -72,10 +72,24 @@ and People. They live in the URL, so a view can be bookmarked or shared.
 - **Project rules live in config**, e.g. `projects/oiio.toml`: bots, release
   tag pattern, segment cutoffs, model, and tagging settings.
 
-## Usage
+## Dependencies
 
-Needs Python 3.11+, git, and the `gh` CLI (logged in). No Python
-dependencies. Only `tag` needs Ollama, with the model named in the config.
+No Python packages: `pyproject.toml` lists none.
+
+| Needs | Used by | For |
+|---|---|---|
+| Python 3.11+ | everything | the `projstats` commands |
+| git | `fetch` | cloning and reading the repository's history |
+| `gh` CLI, logged in | `fetch` | PRs, reviews, issues, and comments through GitHub's GraphQL API |
+| Ollama, with the model named in the config | `tag` | tagging documents with themes (not needed when themes are off) |
+| D3 7.9.0, loaded from cdnjs | the page, when you open it | drawing the charts, so the page needs internet |
+
+Ollama is only needed for tagging. Fetching, building the page, and the
+Overview and People tabs work without it.
+
+`page --open` uses macOS's `open` command to show the page.
+
+## Usage
 
 Themes are optional. For analytics only, set `enabled = false` under
 `[themes]` in the config: the Themes tab and the theme filter are left out of
