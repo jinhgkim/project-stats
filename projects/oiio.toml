@@ -36,6 +36,7 @@ context = 32768 # tokens the model can see per request (prompt + answer)
 think = false   # let the model reason first: slower, sometimes more careful
 
 [themes]
+enabled = true
 about = "OpenImageIO: a C++/Python library and tools (oiiotool, iv, maketx) for reading, writing, and processing images in many formats, used in VFX and animation."
 areas = "image file formats (each format is its own area), ImageCache and TextureSystem, oiiotool, ImageBufAlgo, Python bindings, color management, build system, continuous integration, security and hardening (fuzzing, malformed input), performance, API modernization (e.g. span-based APIs), documentation"
 project_names = ["OpenImageIO", "OIIO", "ImageIO"]  # themes named after the project itself get dropped

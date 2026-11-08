@@ -35,7 +35,7 @@ class ReleasesConfig:
 
 @dataclass
 class ThemesConfig:
-    enabled: bool = True  # false: analytics only; no tagging, no Themes tab or filter
+    enabled: bool = False  # false: analytics only; no tagging, no Themes tab or filter
     about: str = ""  # one sentence about the project, for the tagging prompt
     areas: str = ""  # the project's main areas, so themes name a specific one
     # Names of the project itself; themes like "<name> support" get dropped.

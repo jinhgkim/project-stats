@@ -177,12 +177,12 @@ class ThemesSwitchTest(unittest.TestCase):
         self.addCleanup(Path(tmp.name).unlink)
         return tmp.name
 
-    def test_on_by_default(self):
-        self.assertTrue(config.load(self.write("")).themes.enabled)
+    def test_off_by_default(self):
+        self.assertFalse(config.load(self.write("")).themes.enabled)
 
-    def test_can_be_turned_off(self):
-        cfg = config.load(self.write("[themes]\nenabled = false\n"))
-        self.assertFalse(cfg.themes.enabled)
+    def test_can_be_turned_on(self):
+        cfg = config.load(self.write("[themes]\nenabled = true\n"))
+        self.assertTrue(cfg.themes.enabled)
 
     def test_must_be_true_or_false(self):
         with self.assertRaises(ValueError):

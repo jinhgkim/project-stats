@@ -52,7 +52,11 @@ class ExportTest(unittest.TestCase):
                 "INSERT INTO releases VALUES ('1.0', 'v1.0.0', ?)",
                 (ts("2020-06-01T15:00"),),
             )
-        self.cfg = Config(repo=RepoConfig(github="o/r"), people=PeopleConfig())
+        self.cfg = Config(
+            repo=RepoConfig(github="o/r"),
+            people=PeopleConfig(),
+            themes=ThemesConfig(enabled=True),
+        )
         self.data = export.build(conn, self.cfg, generated="2026-11-06")
 
     def test_columns_line_up_and_indexes_are_valid(self):
