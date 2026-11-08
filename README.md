@@ -5,7 +5,7 @@
 - **Theme trends (optional):** which themes (lasting efforts or functional
   areas) get work and discussion, tagged by a local LLM.
 
-insert link to the deployed page
+Live pages: https://jinhgkim.github.io/project-stats/
 
 ## How it works
 
