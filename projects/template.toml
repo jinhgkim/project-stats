@@ -1,5 +1,5 @@
 # Copy this file to projects/<name>.toml and set [repo] github. Everything else
-# is optional: the commented lines show the defaults. See SETUP.md.
+# is optional: the commented lines show the defaults.
 
 [repo]
 github = ""   # REQUIRED: "owner/name"

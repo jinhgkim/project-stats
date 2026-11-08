@@ -63,8 +63,6 @@ No Python packages: `pyproject.toml` lists none.
 
 ## Usage
 
-To start a new project, see [SETUP.md](SETUP.md).
-
 ```
 python3 -m projstats fetch  projects/oiio.toml   # clone/update + GitHub data
 python3 -m projstats people projects/oiio.toml   # check how people were grouped
