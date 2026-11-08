@@ -21,7 +21,7 @@ See `projstats/storage.py` for the tables and `sync_clone` in
 ## How long does processing take?
 
 Theme tagging is the slow step: the first full run over 9,267 documents took
-3.1 hours with a local 9B model (`--pause 3`). Reruns only tag new or changed
+3.1 hours with a local 9B model (`--pause 5`). Reruns only tag new or changed
 documents. `people`, `export`, and `page` each take under a second.
 
 With themes off (the default), a first run takes minutes. For
@@ -34,7 +34,8 @@ See `tag_documents` in `projstats/tagger.py`.
 
 `.mailmap` is applied first. Then emails join into one person if they share a
 multi-word name (ignoring case and accents) or a GitHub login. Single-word
-names never join. Bots are dropped by `[bot]` login or the config `bots` list.
+names never join. Bots are dropped by `[bot]` login, a built-in list of AI
+tools (Claude, Cursor, Codex, Copilot), or the config `bots` list.
 
 See `group_people` in `projstats/identity.py`. Run `projstats people` to see
 each merge and its reason.
@@ -61,6 +62,13 @@ commits are imported, so a squash-merged PR's commits count as 1.
 See `load_commit_activity` in `projstats/retention.py` and `read_commits` in
 `projstats/gitlog.py`.
 
+## Does recomputing in JavaScript add latency?
+
+Not measured yet. Each filter change recomputes about 29,500 activity rows,
+but only for the open tab, and `#check` runs only when it's in the address.
+
+See `renderAll` in `projstats/page/core.js`.
+
 ## Are we prompting the model to make aliases?
 
 Yes, in two steps. The tagging prompt lists existing themes and says to reuse
@@ -78,10 +86,3 @@ sent to the model. When counting, they take their PR's or issue's themes.
 
 See `load_documents` in `projstats/documents.py` and `doc_ref_of` in
 `projstats/trends.py`.
-
-## Does recomputing in JavaScript add latency?
-
-Not measured yet. Each filter change recomputes about 29,500 activity rows,
-but only for the open tab, and `#check` runs only when it's in the address.
-
-See `renderAll` in `projstats/page/core.js`.
