@@ -57,6 +57,7 @@ No Python packages: `pyproject.toml` lists none.
 | git | `fetch` | cloning and reading the repository's history |
 | `gh` CLI, logged in | `fetch` | PRs, reviews, issues, and comments through GitHub's GraphQL API |
 | D3 7.9.0, loaded from cdnjs | the page, when you open it | drawing the charts, so the page needs internet |
+| Ollama (optional) | `tag` | tagging documents with themes |
 
 `page --open` uses macOS's `open` command to show the page.
 
