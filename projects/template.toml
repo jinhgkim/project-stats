@@ -1,0 +1,40 @@
+# Copy this file to projects/<name>.toml and set [repo] github. Everything else
+# is optional: the commented lines show the defaults. See SETUP.md.
+
+[repo]
+github = ""   # REQUIRED: "owner/name"
+# label = ""  # short name shown on the page; defaults to github
+
+[people]
+# Extra names, emails, or logins to drop. Logins ending in "[bot]" are always dropped.
+# bots = ["Copilot"]
+# People the page lets you leave out with a checkbox, as label = login. Add one
+# only after `fetch` shows a person doing a large share of all activity.
+# leave_out_option = { maintainer = "github-login" }
+
+[activity]
+# PR or issue numbers left out of every count, along with commits linked to those PRs.
+# exclude_items = []
+
+[retention]
+# return_gap_days = 365   # "returning" = back after at least this long away
+# core_share = 0.80       # core = the top people who together do this share of activity
+# regular_share = 0.90    # regular = the next people, up to this share
+
+[releases]
+# Regex that fully matches final release tags and captures major, minor, and
+# patch (a fourth number is optional). Betas and RCs should not match. List the
+# tags: gh api repos/<owner>/<name>/tags --paginate --jq '.[].name'
+# tag_pattern = '^v?(\d+)\.(\d+)\.(\d+)$'
+
+[themes]
+# Off by default. To tag themes with a local LLM, set enabled = true and fill in
+# about and areas; see projects/oiio.toml for a full example.
+# enabled = false
+# about = "One sentence about the project."
+# areas = "its main areas, so themes name a specific one"
+# project_names = ["Name"]   # themes named after the project itself get dropped
+
+# [ollama]   # only used when themes are on
+# host = "http://localhost:11434"
+# model = "ornith-1.5:9b"
