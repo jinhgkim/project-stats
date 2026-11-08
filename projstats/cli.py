@@ -92,7 +92,7 @@ def _print_github(conn, stats: github.FetchStats, full: bool) -> None:
 
 
 def _load_people(conn, cfg: config.Config) -> identity.People:
-    return identity.load_people(conn, cfg.people.bots)
+    return identity.load_people(conn, cfg.people.bots, cfg.people.manual_links())
 
 
 def _load_activity(conn, cfg: config.Config, people, kinds=None):
@@ -121,6 +121,12 @@ def cmd_people(args) -> int:
         print(f"  {p.name}  [{', '.join(p.reasons)}]")
         for email in sorted(p.emails):
             print(f"      {email}")
+
+    problems = identity.unmatched_links(conn, cfg.people.manual_links())
+    if problems:
+        print(f"\nsame_person entries that match nothing ({len(problems)}):")
+        for problem in problems:
+            print(f"  {problem}")
 
     print(f"\nbots dropped ({len(result.bots)}):")
     for p in result.bots:

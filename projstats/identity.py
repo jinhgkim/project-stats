@@ -144,15 +144,18 @@ def group_people(
     bots: Iterable[str] = (),
     links: Iterable[tuple[str, str]] = (),
     github_logins: Mapping[str, int] | None = None,
+    manual_links: Iterable[tuple[str, str]] = (),
 ) -> People:
     """Join identities into people.
 
-    `links` are extra (email, login) pairs. `github_logins` maps logins seen on
-    GitHub to their activity counts; logins that never join a commit identity
-    become login-only people, keyed "login:<login>".
+    `links` are extra (email, login) pairs. `manual_links` are the same, written
+    by hand in the project config, and show up as a reason. `github_logins` maps
+    logins seen on GitHub to their activity counts; logins that never join a
+    commit identity become login-only people, keyed "login:<login>".
     """
     identities = list(identities)
-    links = [(e.lower(), login.casefold()) for e, login in links]
+    manual = {(e.lower(), login.casefold()) for e, login in manual_links}
+    links = [(e.lower(), login.casefold()) for e, login in links] + sorted(manual)
     uf = _UnionFind()
     # Which emails touch each name or login node, to explain merges later.
     touching: dict[tuple, set[str]] = defaultdict(set)
@@ -199,6 +202,8 @@ def group_people(
             f"{kind} '{value}'"
             for (kind, value), touched in touching.items()
             if len(touched & emails) >= 2
+        ) + sorted(
+            f"listed in config: login '{login}'" for e, login in manual if e in emails
         )
         person = Person(
             key=min(by_email, key=lambda e: (-by_email[e], e)),
@@ -244,11 +249,32 @@ def group_people(
     )
 
 
-def load_people(conn: sqlite3.Connection, bots: Iterable[str] = ()) -> People:
+def unmatched_links(
+    conn: sqlite3.Connection, manual_links: Iterable[tuple[str, str]]
+) -> list[str]:
+    """What hand-written links name that the data doesn't have (typos, stale entries)."""
+    emails = {i.email for i in load_identities(conn)}
+    logins = {lg.casefold() for lg in load_github_logins(conn)}
+    logins |= {lg for _, lg in load_links(conn)}
+    problems = []
+    for email, login in sorted(set(manual_links)):
+        if email.lower() not in emails:
+            problems.append(f"{email}: no commits with this email")
+        if login.casefold() not in logins:
+            problems.append(f"{login}: no GitHub activity")
+    return problems
+
+
+def load_people(
+    conn: sqlite3.Connection,
+    bots: Iterable[str] = (),
+    manual_links: Iterable[tuple[str, str]] = (),
+) -> People:
     """Everyone with commits or GitHub activity, grouped and without bots."""
     return group_people(
         load_identities(conn),
         bots,
         links=load_links(conn),
         github_logins=load_github_logins(conn),
+        manual_links=manual_links,
     )

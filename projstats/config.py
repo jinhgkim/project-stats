@@ -19,6 +19,12 @@ class PeopleConfig:
     # Checkboxes the page offers to leave a person out of every count: the
     # label shown on the page (not their name) -> their GitHub login.
     leave_out_option: dict[str, str] = field(default_factory=dict)
+    # People the automatic grouping misses, each a GitHub login and the commit
+    # emails (after .mailmap) that are the same person: {login, emails}.
+    same_person: list[dict] = field(default_factory=list)
+
+    def manual_links(self) -> list[tuple[str, str]]:
+        return [(e, entry["login"]) for entry in self.same_person for e in entry["emails"]]
 
 
 @dataclass
@@ -128,6 +134,20 @@ def load(path: str | Path) -> Config:
         isinstance(k, str) and k.strip() and isinstance(v, str) and v for k, v in opt.items()
     ):
         raise ValueError('[people] leave_out_option must map labels to GitHub logins, e.g. { maintainer = "login" }')
+    for entry in people.same_person:
+        emails = entry.get("emails") if isinstance(entry, dict) else None
+        if not (
+            set(entry) == {"login", "emails"}
+            and isinstance(entry["login"], str)
+            and entry["login"]
+            and isinstance(emails, list)
+            and emails
+            and all(isinstance(e, str) and "@" in e for e in emails)
+        ):
+            raise ValueError(
+                '[people] same_person entries need a login and emails, e.g. '
+                '{ login = "octo", emails = ["octo@example.com"] }'
+            )
     ex = activity.exclude_items
     if not isinstance(ex, list) or not all(type(n) is int and n > 0 for n in ex):
         raise ValueError("[activity] exclude_items must be PR or issue numbers")

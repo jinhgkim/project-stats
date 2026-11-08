@@ -7,8 +7,10 @@ from projstats.identity import (
     load_github_logins,
     load_identities,
     load_links,
+    load_people,
     name_key,
     noreply_login,
+    unmatched_links,
 )
 from tests.github_rows import add_commit, add_commit_login, add_event, add_item
 
@@ -193,6 +195,32 @@ class GithubLoginsTest(unittest.TestCase):
         self.assertEqual(len(result.people), 1)
         p = result.people[0]
         self.assertEqual((p.key, p.logins, p.activity), ("login:a", {"a", "b"}, 4))
+
+
+class ManualLinksTest(unittest.TestCase):
+    def setUp(self):
+        self.conn = storage.connect(":memory:")
+        self.addCleanup(self.conn.close)
+        add_commit(self.conn, "c1", 1, "Rob Mat", "rob@x.example")
+        add_item(self.conn, "I1", 1, "pr", "rob-mat", 10)
+
+    def test_listed_link_joins_login_to_commit_identity(self):
+        links = [("Rob@X.example", "Rob-Mat")]
+        before = load_people(self.conn)
+        self.assertEqual(len(before.people), 2)
+        after = load_people(self.conn, manual_links=links)
+        self.assertEqual(len(after.people), 1)
+        p = after.people[0]
+        self.assertEqual((p.emails, p.logins), ({"rob@x.example"}, {"rob-mat"}))
+        self.assertEqual(p.reasons, ["listed in config: login 'rob-mat'"])
+        self.assertEqual(unmatched_links(self.conn, links), [])
+
+    def test_unmatched_entries_are_reported(self):
+        links = [("typo@x.example", "rob-mat"), ("rob@x.example", "nobody")]
+        self.assertEqual(
+            unmatched_links(self.conn, links),
+            ["nobody: no GitHub activity", "typo@x.example: no commits with this email"],
+        )
 
 
 class LoadGithubTest(unittest.TestCase):

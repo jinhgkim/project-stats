@@ -63,7 +63,7 @@ def _people_by_login(people: list, logins: list[str]) -> list[int]:
 
 
 def build(conn: sqlite3.Connection, cfg: Config, generated: str | None = None) -> dict:
-    people = identity.load_people(conn, cfg.people.bots)
+    people = identity.load_people(conn, cfg.people.bots, cfg.people.manual_links())
     person_index = {p.key: i for i, p in enumerate(people.people)}
     docs = sorted(documents.load_documents(conn), key=lambda d: (d.ts, d.ref))
     doc_index = {d.ref: i for i, d in enumerate(docs)}
