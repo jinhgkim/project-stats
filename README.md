@@ -7,12 +7,6 @@
 
 insert link to the deployed page
 
-- [How it works](#how-it-works)
-- [Dependencies](#dependencies)
-- [Usage](#usage)
-- [Read-only by design](#read-only-by-design)
-- [Theme tagging (optional, needs a local LLM)](#theme-tagging-optional-needs-a-local-llm)
-
 ## How it works
 
 ```
