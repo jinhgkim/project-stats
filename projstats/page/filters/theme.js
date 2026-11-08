@@ -18,8 +18,8 @@ PS.registerFilter({
     const T = PS.data.themes;
     // Still listed when there is nothing to pick, so it is clear the filter exists.
     if (!T.name.length) {
-      const why = PS.data.features.themes ? "No themes yet; run projstats tag."
-        : "Themes are off for this project ([themes] enabled = false in its config).";
+      const why = PS.data.features.themes ? "No themes tagged yet. Run `projstats tag` to add them."
+        : "Themes are not tagged for this project.";
       box.append(PS.el("span", {class: "label"}, "Theme"),
         PS.el("span", {class: "has-tip", title: why},
           PS.el("select", {"aria-label": "Theme", disabled: true}, PS.el("option", {}, "No data available"))));
