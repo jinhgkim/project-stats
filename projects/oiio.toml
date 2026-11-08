@@ -3,8 +3,8 @@ github = "AcademySoftwareFoundation/OpenImageIO"
 label = "ASWF/OpenImageIO"   # short name shown on the page
 
 [people]
-# Extra names, emails, or logins to drop. Logins ending in "[bot]" are always dropped.
-bots = ["Copilot"]
+# Extra names, emails, or logins to drop. Always dropped: logins ending in "[bot]" and
+# Claude, Cursor, Codex, and Copilot (matched by email or login, see identity.py).
 # People the page lets you leave out with a checkbox (all included by default).
 # Each entry is label = login: the page shows the label, never the name.
 leave_out_option = { maintainer = "lgritz" }  # Larry Gritz: about 62% of all activity

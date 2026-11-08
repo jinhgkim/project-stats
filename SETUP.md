@@ -35,7 +35,8 @@ The sections below explain each setting.
   name. Check their share of activity after `fetch` and add it only if it is
   large.
 - `[people] bots`: extra names, emails, or logins to drop. Logins ending in
-  `[bot]` are always dropped.
+  `[bot]` and the AI tools Claude, Cursor, Codex, and Copilot (by email or
+  login) are always dropped.
 - `[activity] exclude_items`: PR or issue numbers left out of every count,
   with their linked commits. For one-off spikes, such as a license change that
   drew many commenters.

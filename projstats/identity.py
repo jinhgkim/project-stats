@@ -14,6 +14,20 @@ from dataclasses import dataclass, field
 
 NOREPLY = re.compile(r"^(?:\d+\+)?([^@]+)@users\.noreply\.github\.com$")
 
+# AI coding tools that show up as commit co-authors in every project. Matched
+# only against emails and logins, never names: "Claude" is also a human name,
+# and the tools' display names vary ("Claude Sonnet 4.6", "Copilot App").
+AI_TOOL_BOTS = frozenset(
+    {
+        "claude",
+        "noreply@anthropic.com",
+        "cursoragent",
+        "cursoragent@cursor.com",
+        "copilot",
+        "noreply@openai.com",  # Codex's default Co-authored-by trailer
+    }
+)
+
 
 @dataclass(frozen=True)
 class Identity:
@@ -118,6 +132,8 @@ class _UnionFind:
 
 def _is_bot(person: Person, names: Iterable[str], bots: set[str]) -> bool:
     if any(login.endswith("[bot]") for login in person.logins):
+        return True
+    if (person.emails | person.logins) & AI_TOOL_BOTS:
         return True
     keys = {n.casefold() for n in names} | person.emails | person.logins
     return bool(keys & bots)

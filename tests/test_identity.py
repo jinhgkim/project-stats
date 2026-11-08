@@ -100,6 +100,37 @@ class GroupPeopleTest(unittest.TestCase):
         self.assertEqual(len(result.bots), 2)
         self.assertNotIn("copilot", result.by_login)
 
+    def test_ai_tools_dropped_without_any_config(self):
+        result = group_people(
+            ids(
+                ("Cursor", "cursoragent@cursor.com", 30),
+                ("Claude Sonnet 4.6", "noreply@anthropic.com", 12),
+                ("Claude Sonnet 5.5", "noreply@anthropic.com", 1),
+                ("Codex", "noreply@openai.com", 2),
+                ("Copilot App", "9+Copilot@users.noreply.github.com", 1),
+                ("Ann Lee", "ann@a.example", 1),
+            ),
+            links=[("cursoragent@cursor.com", "cursoragent")],
+        )
+        self.assertEqual([p.key for p in result.people], ["ann@a.example"])
+        self.assertEqual(len(result.bots), 4)
+
+    def test_ai_tool_logins_dropped_without_a_commit_identity(self):
+        result = group_people([], github_logins={"claude": 3, "cursoragent": 1})
+        self.assertEqual(result.people, [])
+        self.assertEqual(len(result.bots), 2)
+
+    def test_humans_with_lookalike_names_kept(self):
+        result = group_people(
+            ids(
+                ("Claude", "claude@a.example", 5),
+                ("Harry Mallon", "harry.mallon@codex.online", 6),
+            ),
+            github_logins={"claudeha": 7},
+        )
+        self.assertEqual(len(result.people), 3)
+        self.assertEqual(result.bots, [])
+
 
 class LoadIdentitiesTest(unittest.TestCase):
     def test_counts_authors_and_coauthors_case_insensitively(self):

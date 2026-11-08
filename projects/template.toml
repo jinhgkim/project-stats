@@ -6,8 +6,9 @@ github = ""   # REQUIRED: "owner/name"
 # label = ""  # short name shown on the page; defaults to github
 
 [people]
-# Extra names, emails, or logins to drop. Logins ending in "[bot]" are always dropped.
-# bots = ["Copilot"]
+# Extra names, emails, or logins to drop. Always dropped: logins ending in "[bot]" and
+# Claude, Cursor, Codex, and Copilot (matched by email or login, see identity.py).
+# bots = ["a-login", "Some Name", "someone@example.com"]
 # People the page lets you leave out with a checkbox, as label = login. Add one
 # only after `fetch` shows a person doing a large share of all activity.
 # leave_out_option = { maintainer = "github-login" }
