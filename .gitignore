@@ -7,3 +7,6 @@ __pycache__/
 *.egg-info/
 .venv/
 .ruff_cache/
+
+# WIP
+SETUP.md
