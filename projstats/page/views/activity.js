@@ -1,8 +1,8 @@
-// View: the activity of a person, one pane each. Choosing a name toggles it
-// in the URL as person indexes. The Overview's panes (`who`, up to two, side
-// by side) sit under the contributors list and show the open column (`pick`),
-// so they stay hidden until it is set. The People tab's pane (`pwho`, one)
-// sits under the people list and shows everything the filters leave.
+// View: the activity of one person. Choosing a name opens that person's pane
+// (their index in the URL) and choosing another replaces it. The Overview's pane
+// (`who`) sits under the contributors list and shows the open column (`pick`),
+// so it stays hidden until it is set. The People tab's pane (`pwho`) sits under
+// the people list and shows everything the filters leave.
 
 const KIND_LABELS = {commit: "Commit", pr: "PR opened", review: "Review", issue: "Issue opened", comment: "Comment"};
 // Code and Discussion are the groups of the Activity filter (filters/kind.js),
@@ -22,51 +22,46 @@ const KIND_NAMES = {
 const kindName = (kind, n) => (KIND_NAMES[kind] || [kind, kind])[n === 1 ? 0 : 1];
 
 const LIMIT = 50;
-const MAX = {who: 2, pwho: 1};
 
-// The people chosen under URL key `who` or `pwho`, oldest choice first.
-PS.whoList = (state, key = "who") => [...new Set((state[key] || "").split(",").filter(s => /^\d+$/.test(s)).map(Number))]
-  .filter(i => i < PS.data.people.name.length).slice(0, MAX[key]);
-
-// The state change that picks a person, or drops them when already picked. A
-// pick beyond the limit replaces the oldest one.
-PS.whoToggle = (state, person, key = "who") => {
-  const now = PS.whoList(state, key);
-  const next = now.includes(person) ? now.filter(p => p !== person) : [...now, person].slice(-MAX[key]);
-  return {[key]: next.length ? next.join(",") : undefined};
+// The person chosen under URL key `who` or `pwho`, or undefined.
+PS.whoPick = (state, key = "who") => {
+  const s = (state[key] || "").split(",")[0];
+  const person = /^\d+$/.test(s) ? Number(s) : undefined;
+  return person < PS.data.people.name.length ? person : undefined;
 };
+
+// The state change that picks a person, or drops them when already picked.
+PS.whoToggle = (state, person, key = "who") =>
+  ({[key]: PS.whoPick(state, key) === person ? undefined : String(person)});
 
 // A name that opens that person's pane (`prefix` "people-" for the People tab's).
 PS.personButton = (person, state, prefix = "") => {
   const key = prefix ? "pwho" : "who";
   return PS.el("button", {
-    type: "button", class: "link-button", "aria-expanded": String(PS.whoList(state, key).includes(person)),
+    type: "button", class: "link-button", "aria-expanded": String(PS.whoPick(state, key) === person),
     onclick: () => {
       const patch = PS.whoToggle(state, person, key);
-      const slot = PS.whoList(patch, key).indexOf(person);
-      if (slot < 0) PS.set(patch);
-      else PS.jumpTo(`view-${prefix}activity${slot ? `-${slot + 1}` : ""}`, patch);
+      if (patch[key] === undefined) PS.set(patch);
+      else PS.jumpTo(`view-${prefix}activity`, patch);
     },
   }, PS.personName(person));
 };
 
 // `inPeriod`: the Overview's pane, limited to the open column. Otherwise the
 // People tab's, whose rows ignore the left-out filter like its list does.
-const pane = (slot, inPeriod) => ({
-  id: `${inPeriod ? "" : "people-"}activity${slot ? `-${slot + 1}` : ""}`,
+const pane = inPeriod => ({
+  id: `${inPeriod ? "" : "people-"}activity`,
   title: "Activity",
   tab: inPeriod ? undefined : "people",
-  order: (inPeriod ? 20 : 30) + slot,
+  order: inPeriod ? 20 : 30,
   noTable: true,
   render(figure, ctx) {
     const {data, state, set} = ctx;
     const rows = inPeriod ? ctx.rows : ctx.rowsExcept("people");
     const A = data.activity;
     const key = inPeriod ? "who" : "pwho";
-    const people = PS.whoList(state, key);
-    const person = people[slot];
+    const person = PS.whoPick(state, key);
     const [kind, pickKey] = (state.pick || "").split(":");
-    figure.root.classList.toggle("half", people.length > 1);
     figure.root.hidden = person === undefined || (inPeriod && (kind !== state.period || !/^\d+$/.test(pickKey)));
     if (figure.root.hidden) return;
 
@@ -138,5 +133,5 @@ const pane = (slot, inPeriod) => ({
   },
 });
 
-for (let slot = 0; slot < MAX.who; slot++) PS.registerView(pane(slot, true));
-PS.registerView(pane(0, false));
+PS.registerView(pane(true));
+PS.registerView(pane(false));
