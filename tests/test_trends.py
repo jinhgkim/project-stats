@@ -8,10 +8,10 @@ Releases 1.0 (2020), 1.1 (2021), 1.2 (2022) give four periods:
 Activity:
   P1: commit aaaa (linked to pr#1, ann), review on pr#1 (bo), pr#2 opened (bo),
       issue#3 opened (cy)                         -> 4 on tagged docs
-      A: code 1 + discussion 1 = 2/4 = 0.50;  B: 1/4 = 0.25
+      A: code 1 + discussion 1 = 2/4 = 0.50;  B: code 1 = 1/4 = 0.25
   P2: pr#4 opened (ann), commit bbbb (ann), comment on pr#5 (bo),
       issue#6 opened (cy)                         -> 4 on tagged docs
-      A: code 1 + discussion 2 = 3/4 = 0.75;  B: 1/4 = 0.25
+      A: code 2 + discussion 1 = 3/4 = 0.75;  B: discussion 1 = 1/4 = 0.25
   P3: pr#7 opened (ann) -> C 1/1
   P0: commit c0 (ann) is on an untagged doc and ignored.
 Trends compare P2 with P1 (P3 is in progress): A 0.75 vs 0.50 = 1.5x -> rising;
@@ -110,12 +110,12 @@ class AnalyzeTest(unittest.TestCase):
         self.assertEqual((p0.docs, p0.tagged, p0.covered, p0.themes), (1, 0, False, []))
         self.assertEqual((p1.docs, p1.tagged, p1.activity), (3, 3, 4))
         self.assertEqual(
-            stats(p1), {"Alpha": (1, 1, 1, 2, 0.5), "Beta": (1, 0, 1, 1, 0.25)}
+            stats(p1), {"Alpha": (1, 1, 1, 2, 0.5), "Beta": (1, 1, 0, 1, 0.25)}
         )
         self.assertEqual(
-            stats(p2), {"Alpha": (3, 1, 2, 2, 0.75), "Beta": (1, 0, 1, 1, 0.25)}
+            stats(p2), {"Alpha": (3, 2, 1, 2, 0.75), "Beta": (1, 0, 1, 1, 0.25)}
         )
-        self.assertEqual(stats(p3), {"Gamma": (1, 0, 1, 1, 1.0)})
+        self.assertEqual(stats(p3), {"Gamma": (1, 1, 0, 1, 1.0)})
         self.assertEqual([s.name for s in p2.themes], ["Alpha", "Beta"])
 
     def test_untagged_periods_get_no_share(self):
@@ -160,7 +160,7 @@ class AnalyzeTest(unittest.TestCase):
         r = report()
         self.assertEqual(
             [(c.person, c.code, c.discussion) for c in r.contributors["A"]],
-            [("ann", 2, 1), ("bo", 0, 2)],
+            [("ann", 3, 0), ("bo", 0, 2)],
         )
         # Bo and Cy tie on Beta with 1 each; names break the tie.
         self.assertEqual([c.person for c in r.contributors["B"]], ["bo", "cy"])

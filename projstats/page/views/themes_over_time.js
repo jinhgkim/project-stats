@@ -1,6 +1,6 @@
 // View: each theme's share of activity per release cycle, as a heatmap. Only
-// periods that are mostly tagged get columns. Whether a theme is rising or
-// fading shows on hover, not as row labels. A cell opens, in the pane below,
+// periods that are mostly tagged get columns. Hovering a theme shows its latest
+// share and how it compares with earlier ones. A cell opens, in the pane below,
 // the activity its share is made of, listed like the People tab's pane.
 
 // The theme views' period: release cycles, or years when a project has no
@@ -45,14 +45,13 @@ PS.registerView({
       .sort((a, b) => rankShare(b) - rankShare(a) || name(a).localeCompare(name(b)));
 
     const compared = r.recent === null || !r.earlier.length ? null
-      : `Hover a theme for its trend: ${r.periods[r.recent].label} vs ${r.earlier.length === 1 ? r.periods[r.earlier[0]].label
-        : `${r.earlier.length} earlier ${scheme.name}s`}. Rising: 1.5× the share or more. Fading: 0.67× or less. ` +
-        "Under 5 documents: too few to tell.";
+      : `Hover a theme to compare its share in ${r.periods[r.recent].label} with ${r.earlier.length === 1 ? r.periods[r.earlier[0]].label
+        : `all ${r.earlier.length} earlier ${scheme.name}s combined`}.`;
     figure.subtitle.textContent = "Which areas of work are getting more attention, and which less?";
     PS.fillHowto(figure, [
-      `Each cell: the theme's share, in percent, of all activity on tagged documents in that ${scheme.name}. A blank cell means no activity.`,
+      `Each cell: activity on the theme's documents / all activity on tagged documents, in that ${scheme.name}, as a percent. A blank cell means no activity.`,
       "A PR's reviews, comments, and linked commits count toward its themes; a document with two themes counts for both.",
-      `Choose a cell to list the activity behind it: commits, PRs, reviews, and comments on the theme's documents in that ${scheme.name}. With the keyboard, use the up and down arrows to pick a theme, the left and right arrows to pick a ${scheme.name}, and Enter to list.`,
+      `Documents in the tooltip: the PRs opened, issues opened, and commits not tied to a PR in that ${scheme.name} that are tagged with the theme.`,
       compared,
       untagged ? `${untagged} earlier ${scheme.name}${untagged === 1 ? " isn't" : "s aren't"} tagged yet, so ` +
         `${untagged === 1 ? "it's" : "they're"} left out.` : null,
@@ -148,7 +147,7 @@ PS.registerView({
           .attr("dominant-baseline", "middle").text(shareNum(s.share));
       });
 
-      const all = cols.map(p => ({name: p.label + (p.partial && scheme.soFar ? " so far" : ""), value: shareOf(p, t) ? pct(shareOf(p, t).share) : "–"}));
+      const all = cols.slice(-1).map(p => ({name: p.label + (p.partial && scheme.soFar ? " so far" : ""), value: shareOf(p, t) ? pct(shareOf(p, t).share) : "–"}));
       // k: the column to describe; from the pointer when left out.
       const show = (event, k) => {
         if (k === undefined && event instanceof Event && "clientX" in event) {
@@ -162,20 +161,19 @@ PS.registerView({
           lines = [
             {name: `share in ${p.label}`, value: pct(s.share)},
             {name: "documents", value: s.docs},
-            {name: "code (commits)", value: s.code},
+            {name: "commits", value: s.commits},
             {name: "discussion", value: s.discussion},
             {name: "people", value: s.people},
           ];
         }
-        const head = trend ? `${name(t)} · ${trend.label}` : name(t);
-        PS.showTooltip(event, head, trend && lines === all
-          ? [...lines, {name: "recent vs earlier", value: `${pct(trend.recentShare)} vs ${pct(trend.earlierShare)}`}]
+        PS.showTooltip(event, name(t), trend && lines === all
+          ? [...lines, {name: `${r.periods[r.recent].label} vs earlier`, value: `${pct(trend.recentShare)} vs ${pct(trend.earlierShare)}`}]
           : lines);
       };
       hits.push(g.append("rect").attr("class", "hit")
         .attr("x", 0).attr("y", y).attr("width", x0 + cols.length * cellW).attr("height", rowH)
         .attr("role", "button")
-        .attr("aria-label", `${name(t)}${trend ? `, ${trend.label}` : ""}: ` +
+        .attr("aria-label", `${name(t)}: ` +
           all.map(a => `${a.name} ${a.value}`).join(", ") +
           `. Left and right arrows choose a ${scheme.name}; Enter lists its activity.`)
         .on("pointermove", show)

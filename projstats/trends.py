@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from projstats.documents import Document, Period, assign, commit_ref, period_indexes
 from projstats.retention import Activity
 
-CODE_KINDS = {"commit"}  # every other activity kind counts as discussion
+CODE_KINDS = {"commit", "pr"}  # every other activity kind counts as discussion
 
 
 @dataclass

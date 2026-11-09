@@ -11,12 +11,6 @@ const GROUPS = [
   {name: "Code", kinds: KIND_GROUPS.code, color: "var(--kind-code)"},
   {name: "Discussion", kinds: KIND_GROUPS.discussion, color: "var(--kind-discussion)"},
 ];
-// The theme views count only commits as code, as trends.CODE_KINDS does, so a
-// PR opened is discussion there.
-PS.COMMIT_GROUPS = [
-  {name: "Code", kinds: ["commit"], color: "var(--kind-code)"},
-  {name: "Discussion", kinds: ["pr", ...KIND_GROUPS.discussion], color: "var(--kind-discussion)"},
-];
 const groupOf = (kind, groups = GROUPS) => groups.find(g => g.kinds.includes(kind));
 const dot = group => PS.el("span", {
   class: "status on", style: `background: ${group.color}; border-color: ${group.color}`, "aria-hidden": "true",
@@ -146,11 +140,10 @@ PS.themeActivity = (figure, {title, rows, extra = [], onClose, rerender}) => {
   }
   return [
     PS.el("div", {class: "details-head"}, PS.el("h3", {}, title), toggle, ...extra, close),
-    PS.el("div", {class: "legend"}, PS.activitySummary(mine, PS.COMMIT_GROUPS)),
+    PS.el("div", {class: "legend"}, PS.activitySummary(mine)),
     mine.length ? PS.activityTable(figure.showAll ? mine : mine.slice(0, limit), {
       sort: figure.sort,
       people: true,
-      groups: PS.COMMIT_GROUPS,
       onSort: key => {
         figure.sort = PS.nextSort(figure.sort, key);
         rerender();

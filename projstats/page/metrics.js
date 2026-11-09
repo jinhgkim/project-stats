@@ -176,8 +176,9 @@ PS.metrics = (() => {
     }
 
     const commit = data.kinds.indexOf("commit");
+    const codeKinds = new Set([commit, data.kinds.indexOf("pr")]);
     const activityIn = new Array(n).fill(0);
-    const code = grid(), discussion = grid();
+    const code = grid(), discussion = grid(), commits = grid();
     const people = new Map();  // t * n + p -> Set of people
     const byPerson = Array.from({length: nThemes}, () => new Map());
     const lastDay = new Array(nThemes).fill(null);
@@ -186,9 +187,10 @@ PS.metrics = (() => {
       if (d < 0 || !tagged[d]) continue;
       const p = indexOf(A.day[i]);
       activityIn[p] += 1;
-      const isCode = A.kind[i] === commit;
+      const isCode = codeKinds.has(A.kind[i]);
       for (const t of themesOf.get(d) || noThemes) {
         (isCode ? code : discussion)[t][p] += 1;
+        if (A.kind[i] === commit) commits[t][p] += 1;
         const cell = t * n + p;
         if (!people.has(cell)) people.set(cell, new Set());
         people.get(cell).add(A.person[i]);
@@ -214,7 +216,7 @@ PS.metrics = (() => {
         const c = code[t][p], dsc = discussion[t][p];
         if (!(c || dsc || themeDocs[t][p])) continue;
         stats.push({
-          theme: t, docs: themeDocs[t][p], code: c, discussion: dsc,
+          theme: t, docs: themeDocs[t][p], code: c, discussion: dsc, commits: commits[t][p],
           people: people.has(t * n + p) ? people.get(t * n + p).size : 0,
           share: covered[p] && activityIn[p] ? (c + dsc) / activityIn[p] : null,
         });
