@@ -29,8 +29,6 @@ PS.registerView({
     const selected = PS.selectedThemes(state);
     const cols = r.periods.filter(p => p.covered && p.activity > 0);
     const untagged = r.periods.filter(p => !p.covered && p.activity > 0).length;
-    const scrolled = figure.plot.querySelector(".scroll");
-    const scrollTop = scrolled ? scrolled.scrollTop : 0;
 
     const name = t => data.themes.name[t];
     const shareOf = (p, t) => {
@@ -87,135 +85,58 @@ PS.registerView({
     const picked = pickedCol >= 0 && themes.includes(figure.pick.t) && shareOf(cols[pickedCol], figure.pick.t)
       ? figure.pick : null;
     if (!picked) figure.pick = null;
-    // The column the arrow keys are on.
-    if (figure.col === undefined || figure.col >= cols.length) figure.col = cols.length - 1;
 
-    const width = Math.max(320, figure.plot.clientWidth || figure.root.clientWidth - 32);
-    const maxNameW = Math.min(220, Math.round(width * 0.4));
-    const label = t => PS.fitText(name(t), 12, maxNameW);
-    const nameW = 8 + Math.max(...themes.map(t => PS.textWidth(label(t), 12)));
-    const x0 = nameW;
-    const cellW = Math.min(110, (width - x0) / cols.length);
-    const rowH = 24, top = 34;
-    const height = themes.length * rowH;
-
-    // The column labels stay put while the rows scroll.
-    const header = d3.create("svg").attr("viewBox", `0 0 ${width} ${top}`).attr("height", top)
-      .attr("aria-hidden", "true");
-    cols.forEach((p, i) => {
-      const cx = x0 + i * cellW + cellW / 2;
-      header.append("text").attr("x", cx).attr("y", 14).attr("text-anchor", "middle").text(p.short);
-      if (p.partial && scheme.soFar) header.append("text").attr("x", cx).attr("y", 27).attr("text-anchor", "middle").text("so far");
-    });
-    const svg = d3.create("svg")
-      .attr("viewBox", `0 0 ${width} ${height}`).attr("height", height)
-      .attr("role", "group")
-      .attr("aria-label", `Themes over time by ${scheme.name}. Up and down arrows move between themes, left and right ` +
-        `between ${scheme.name}s, and Enter lists the activity; the Table button shows the numbers.`);
-
-    const colAt = event => Math.floor((d3.pointer(event, svg.node())[0] - x0) / cellW);
-    const choose = (t, k, keyboard) => {
-      const p = cols[k];
-      if (!p || !shareOf(p, t)) return;
-      PS.hideTooltip();
-      figure.col = k;
-      const same = picked && picked.t === t && picked.key === p.key;
-      figure.pick = same ? null : {t, key: p.key};
-      figure.showAll = false;
-      figure.refocus = keyboard ? themes.indexOf(t) : undefined;
-      this.render(figure, args);
-      if (figure.pick) figure.details.scrollIntoView({behavior: "smooth", block: "nearest"});
-    };
-
-    const hits = [];
-    themes.forEach((t, row) => {
-      const y = row * rowH;
-      const mid = y + rowH / 2;
-      const g = svg.append("g");
-      const trend = r.trends.get(t);
-      g.append("text").attr("class", selected.includes(t) ? "label current" : "label")
-        .attr("x", 0).attr("y", mid).attr("dominant-baseline", "middle").text(label(t));
-      cols.forEach((p, i) => {
-        const s = shareOf(p, t);
-        const x = x0 + i * cellW;
-        if (!s) return;
-        const bin = binOf(s.share);
-        g.append("rect").attr("x", x + 1).attr("y", y + 1).attr("width", cellW - 2).attr("height", rowH - 2)
-          .attr("rx", 3).attr("fill", `var(--seq-${bin + 1})`).attr("opacity", p.partial ? 0.6 : 1);
-        g.append("text").attr("class", bin >= 3 ? "cell-ink-inverse" : "cell-ink")
-          .attr("x", x + cellW / 2).attr("y", mid).attr("text-anchor", "middle")
-          .attr("dominant-baseline", "middle").text(shareNum(s.share));
-      });
-
-      const all = cols.slice(-1).map(p => ({name: p.label + (p.partial && scheme.soFar ? " so far" : ""), value: shareOf(p, t) ? pct(shareOf(p, t).share) : "–"}));
-      // k: the column to describe; from the pointer when left out.
-      const show = (event, k) => {
-        if (k === undefined && event instanceof Event && "clientX" in event) {
-          k = colAt(event);
-          event.currentTarget.style.cursor = cols[k] && shareOf(cols[k], t) ? "pointer" : "";
-        }
+    // The latest column's share, for a row's label and its tooltip off the cells.
+    const latest = t => cols.slice(-1).map(p => ({
+      name: p.label + (p.partial && scheme.soFar ? " so far" : ""),
+      value: shareOf(p, t) ? pct(shareOf(p, t).share) : "–",
+    }));
+    PS.charts.heatmap(figure, {
+      rows: themes,
+      cols,
+      rowLabel: i => name(themes[i]),
+      rowCurrent: i => selected.includes(themes[i]),
+      colLabel: k => cols[k].short,
+      colNote: k => (cols[k].partial && scheme.soFar ? "so far" : null),
+      cell: (i, k) => {
+        const p = cols[k];
+        const s = p && shareOf(p, themes[i]);
+        return s ? {text: shareNum(s.share), bin: binOf(s.share), faded: p.partial} : null;
+      },
+      label: `Themes over time by ${scheme.name}. Up and down arrows move between themes, left and right ` +
+        `between ${scheme.name}s, and Enter lists the activity; the Table button shows the numbers.`,
+      rowLabelAria: i => `${name(themes[i])}: ` +
+        latest(themes[i]).map(a => `${a.name} ${a.value}`).join(", ") +
+        `. Left and right arrows choose a ${scheme.name}; Enter lists its activity.`,
+      tooltip: (i, k, anchor) => {
+        const t = themes[i];
+        const trend = r.trends.get(t);
         const p = cols[k];
         const s = p && shareOf(p, t);
-        let lines = all;
-        if (s) {
-          lines = [
-            {name: `share in ${p.label}`, value: pct(s.share)},
-            {name: "documents", value: s.docs},
-            {name: "commits", value: s.commits},
-            {name: "discussion", value: s.discussion},
-            {name: "people", value: s.people},
-          ];
-        }
-        PS.showTooltip(event, name(t), trend && lines === all
+        const all = latest(t);
+        const lines = s ? [
+          {name: `share in ${p.label}`, value: pct(s.share)},
+          {name: "documents", value: s.docs},
+          {name: "commits", value: s.commits},
+          {name: "discussion", value: s.discussion},
+          {name: "people", value: s.people},
+        ] : all;
+        PS.showTooltip(anchor, name(t), trend && lines === all
           ? [...lines, {name: `${r.periods[r.recent].label} vs earlier`, value: `${pct(trend.recentShare)} vs ${pct(trend.earlierShare)}`}]
           : lines);
-      };
-      hits.push(g.append("rect").attr("class", "hit")
-        .attr("x", 0).attr("y", y).attr("width", x0 + cols.length * cellW).attr("height", rowH)
-        .attr("role", "button")
-        .attr("aria-label", `${name(t)}: ` +
-          all.map(a => `${a.name} ${a.value}`).join(", ") +
-          `. Left and right arrows choose a ${scheme.name}; Enter lists its activity.`)
-        .on("pointermove", show)
-        .on("click", event => choose(t, colAt(event), false))
-        .on("keydown", event => {
-          const step = {ArrowLeft: -1, ArrowRight: 1}[event.key];
-          if (step !== undefined) {
-            event.preventDefault();
-            figure.col = Math.max(0, Math.min(cols.length - 1, figure.col + step));
-            place(row);
-            show(event.currentTarget, figure.col);
-          } else if (event.key === "Enter" || event.key === " ") {
-            event.preventDefault();
-            choose(t, figure.col, true);
-          }
-        })
-        .on("focus", event => { place(row); show(event.currentTarget, figure.col); })
-        .on("pointerleave blur", PS.hideTooltip)
-        .on("blur.cursor", () => cursor.attr("display", "none")).node());
+      },
+      onPick: (i, k) => {
+        const t = themes[i];
+        const p = cols[k];
+        const same = picked && picked.t === t && picked.key === p.key;
+        figure.pick = same ? null : {t, key: p.key};
+        figure.showAll = false;
+        this.render(figure, args);
+        if (figure.pick) figure.details.scrollIntoView({behavior: "smooth", block: "nearest"});
+      },
+      picked: picked && {row: themes.indexOf(picked.t), col: pickedCol},
+      focusRow: Math.max(0, themes.indexOf(selected[0])),
     });
-
-    // Marks above the rows: the chosen cell, and the cell the arrow keys are on.
-    const outline = (cls, k, row, stroke, w) => svg.append("rect").attr("class", cls)
-      .attr("x", x0 + k * cellW + 1).attr("y", row * rowH + 1).attr("width", cellW - 2).attr("height", rowH - 2)
-      .attr("rx", 3).attr("fill", "none").attr("stroke", stroke).attr("stroke-width", w)
-      .attr("pointer-events", "none");
-    if (picked) outline("picked", pickedCol, themes.indexOf(picked.t), "var(--text-primary)", 1.5);
-    const cursor = outline("cursor", 0, 0, "var(--series-1)", 2).attr("display", "none");
-    const place = row => cursor.attr("display", null)
-      .attr("x", x0 + figure.col * cellW + 1).attr("y", row * rowH + 1);
-
-    const current = figure.refocus !== undefined ? figure.refocus : Math.max(0, themes.indexOf(selected[0]));
-    PS.rovingFocus(hits, current, "ArrowUp", "ArrowDown");
-    const scroll = PS.el("div", {class: "scroll"});
-    scroll.addEventListener("scroll", PS.hideTooltip, {passive: true});
-    scroll.append(svg.node());
-    figure.plot.replaceChildren(header.node(), scroll);
-    scroll.scrollTop = scrollTop;
-    if (figure.refocus !== undefined) {
-      hits[figure.refocus].focus();
-      figure.refocus = undefined;
-    }
 
     if (!picked) return;
     const cell = cols[pickedCol];

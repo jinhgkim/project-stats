@@ -66,8 +66,7 @@ PS.registerView({
     ], people);
 
     if (!people.length) {
-      figure.plot.replaceChildren(PS.el("p", {class: "empty"},
-        stats.length ? "No one in the chosen segments." : "No activity matches the filters."));
+      PS.charts.empty(figure, stats.length ? "No one in the chosen segments." : "No activity matches the filters.");
       return;
     }
 
@@ -86,7 +85,7 @@ PS.registerView({
     }
     const keys = d3.range(minKey, maxKey + 1);
 
-    const width = Math.max(320, figure.plot.clientWidth || figure.root.clientWidth - 32);
+    const width = PS.charts.width(figure);
     const maxNameW = Math.min(220, Math.round(width * 0.38));
     const short = name => PS.fitText(name, NAME_SIZE, maxNameW - 12);
     const nameW = Math.min(maxNameW, 12 + Math.max(...people.map(s => PS.textWidth(short(PS.personName(s.person)), NAME_SIZE))));
@@ -98,9 +97,8 @@ PS.registerView({
 
     // Header: period labels and data-source marker labels; it stays put
     // while the rows scroll.
-    const header = d3.create("svg").attr("viewBox", `0 0 ${width} ${headH}`).attr("height", headH)
-      .attr("aria-hidden", "true");
-    const every = Math.max(1, Math.ceil(56 / x.step()));
+    const header = PS.charts.svg(width, headH, null);
+    const every = PS.charts.labelEvery(x.step());
     const hg = header.append("g").attr("transform", `translate(${nameW},0)`);
     keys.forEach((k, i) => {
       if (i % every || x(k) + PS.textWidth(scheme.short(k), 11) > innerW + 8) return;
@@ -113,9 +111,8 @@ PS.registerView({
 
     // Body: one row per person.
     const height = people.length * rowH;
-    const body = d3.create("svg").attr("viewBox", `0 0 ${width} ${height}`).attr("height", height)
-      .attr("role", "group")
-      .attr("aria-label", "Timeline per person. Arrow keys move between people; the Table button lists them.");
+    const body = PS.charts.svg(width, height,
+      "Timeline per person. Arrow keys move between people; the Table button lists them.");
     // Every other row shaded, and light gridlines at the labeled periods, so
     // a row is easy to follow across.
     people.forEach((_, row) => {
@@ -130,7 +127,7 @@ PS.registerView({
     for (const m of markers) {
       markerG.append("line").attr("x1", x(m.key)).attr("x2", x(m.key)).attr("y1", 0).attr("y2", height);
     }
-    const hits = [];
+    const targets = [];
     people.forEach((s, row) => {
       const y = row * rowH;
       const name = PS.personName(s.person);
@@ -161,20 +158,21 @@ PS.registerView({
         }
         PS.showTooltip(event, title, lines);
       };
-      hits.push(body.append("rect").attr("class", "hit")
-        .attr("x", 0).attr("y", y).attr("width", width).attr("height", rowH)
-        .attr("role", "img")
-        .attr("aria-label", `${name}: ${s.segment}, ${dayText(s.first)} to ${dayText(s.last)}, ` +
-          `${s.activity} activity in ${s.quarters} quarters${s.current ? ", active now" : ""}`)
-        .on("pointermove", show)
-        .on("focus", event => show(event.currentTarget))
-        .on("pointerleave blur", PS.hideTooltip).node());
+      targets.push({
+        node: body.append("rect").attr("class", "hit")
+          .attr("x", 0).attr("y", y).attr("width", width).attr("height", rowH),
+        label: `${name}: ${s.segment}, ${dayText(s.first)} to ${dayText(s.last)}, ` +
+          `${s.activity} activity in ${s.quarters} quarters${s.current ? ", active now" : ""}`,
+        show,
+      });
     });
-    PS.rovingFocus(hits, 0, "ArrowUp", "ArrowDown");
+    PS.charts.hits(figure, targets.map(t => t.node), {
+      keys: ["ArrowUp", "ArrowDown"],
+      current: 0,
+      label: i => targets[i].label,
+      show: (i, anchor) => targets[i].show(anchor),
+    });
 
-    const scroll = PS.el("div", {class: "scroll"});
-    scroll.addEventListener("scroll", PS.hideTooltip, {passive: true});
-    scroll.append(body.node());
-    figure.plot.replaceChildren(header.node(), scroll);
+    PS.charts.scrollArea(figure, header, body);
   },
 });

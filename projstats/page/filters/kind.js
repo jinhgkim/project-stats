@@ -9,6 +9,7 @@ const KIND_GROUPS = {
 
 PS.registerFilter({
   id: "kind",
+  keys: ["kinds"],
   init(state) {
     if (!state.kinds) return;
     const on = state.kinds.split(",").filter(k => PS.data.kinds.includes(k));

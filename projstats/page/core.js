@@ -45,17 +45,15 @@ const PS = (() => {
     renderAll();
   }
 
-  // The keys the top-bar filters own, cleared by Reset.
-  const FILTER_KEYS = ["from", "to", "kinds", "without", "theme"];
-
-
-
   // ---- registry ---------------------------------------------------------------
 
-  // filter: {id, init?(state), control(el, state, set), predicate?(state) -> (i) => bool,
-  //          sync?(state), target?, secondary?, chips?(state)}; sync updates the
-  //          control when another part of the page changes its state. A control
-  //          with a `target` view id sits in that view instead of the top bar
+  // filter: {id, keys?, projectKeys?, init?(state), control(el, state, set),
+  //          predicate?(state) -> (i) => bool, sync?(state), target?, secondary?,
+  //          chips?(state)}. keys: the URL keys it owns, cleared by Reset all.
+  //          projectKeys: keys that name one project's data (people, themes),
+  //          dropped when switching projects. sync updates the control when
+  //          another part of the page changes its state. A control with a
+  //          `target` view id sits in that view instead of the top bar
   //          (settings, not filters). A `secondary` control waits behind "More
   //          filters". chips(state) lists [{text, clear}] for what the filter
   //          changes now; clear is the state patch that undoes it.
@@ -63,20 +61,23 @@ const PS = (() => {
   // A filter or view with a `feature` (e.g. "themes") exists only when
   // data.features turns it on.
   const featureOn = item => !item.feature || Boolean(data.features[item.feature]);
-  // view: {id, title, order, tab, feature?, width?, bare?, noTable?, render(figure, ctx)};
-  // ctx = {data, rows, rowsExcept(filterId), state, set}. Views appear by
-  // `order` within their tab. width "half" pairs views on wide screens.
-  // A bare view has no card or title.
+  // view: {id, title, order, tab?, feature?, projectKeys?, width?, bare?, noTable?,
+  // render(figure, ctx)}; ctx = {data, rows, rowsExcept(filterId), state, set}.
+  // Views appear by `order` within their tab; one without `tab` goes on the
+  // first tab. width "half" pairs views on wide screens. A bare view has no
+  // card or title.
   function registerView(view) { if (featureOn(view)) views.push(view); }
 
-  // Tabs, in order; the first is the default. Only the open tab's views are
-  // drawn.
-  const TABS = [
-    {id: "overview", label: "Overview"},
-    {id: "people", label: "People"},
-    {id: "themes", label: "Themes"},
-  ];
-  const tabOf = view => view.tab || TABS[0].id;
+  // tab: {id, label, order}. Tabs appear by `order`, and only when some view
+  // is on them; the first is the default. Only the open tab's views are drawn.
+  const tabRegistry = [];
+  function registerTab(tab) { tabRegistry.push(tab); }
+  registerTab({id: "overview", label: "Overview", order: 10});
+  registerTab({id: "people", label: "People", order: 20});
+  registerTab({id: "themes", label: "Themes", order: 30});
+  let TABS = [];  // the tabs shown, set at start
+  let firstTab = null;
+  const tabOf = view => view.tab || firstTab;
   function activeTab() {
     return TABS.some(t => t.id === state.tab && views.some(v => tabOf(v) === t.id)) ? state.tab : TABS[0].id;
   }
@@ -117,7 +118,7 @@ const PS = (() => {
     }
     box.append(el("button", {
       type: "button", class: "link",
-      onclick: () => set(Object.fromEntries(FILTER_KEYS.map(k => [k, undefined]))),
+      onclick: () => set(Object.fromEntries(filters.flatMap(f => f.keys || []).map(k => [k, undefined]))),
     }, "Reset all"));
   }
 
@@ -491,8 +492,7 @@ const PS = (() => {
 
   // Other projects' pages sit next to this one (data.siblings, set when the
   // page is built). The title ends with the dropdown: Project Analytics: [name].
-  // Switching keeps the view except what belongs to one project.
-  const PROJECT_ONLY = ["theme", "without", "who", "pwho"];
+  // Switching keeps the view except what belongs to one project (projectKeys).
   function setupProjectSwitch() {
     const select = document.getElementById("project");
     const projects = data.siblings || [];
@@ -516,7 +516,7 @@ const PS = (() => {
     select.onchange = () => {
       const target = projects[select.value];
       if (target.current) return;
-      location.href = target.href + hashOf(state, PROJECT_ONLY);
+      location.href = target.href + hashOf(state, [...filters, ...views].flatMap(x => x.projectKeys || []));
     };
     select.hidden = false;
   }
@@ -547,8 +547,10 @@ const PS = (() => {
     const main = document.getElementById("views");
     const tabList = document.getElementById("tabs");
     views.sort((a, b) => (a.order || 0) - (b.order || 0));
-    const tabs = TABS.filter(tab => views.some(v => tabOf(v) === tab.id));
-    tabs.forEach((tab, i) => {
+    tabRegistry.sort((a, b) => (a.order || 0) - (b.order || 0));
+    firstTab = tabRegistry[0].id;
+    TABS = tabRegistry.filter(tab => views.some(v => tabOf(v) === tab.id));
+    TABS.forEach((tab, i) => {
       const grid = el("div", {class: "grid"});
       tab.button = el("button", {
         type: "button", role: "tab", class: "tab", id: `tab-${tab.id}`,
@@ -556,10 +558,10 @@ const PS = (() => {
       }, tab.label);
       tab.button.onclick = () => openTab(tab.id);
       tab.button.addEventListener("keydown", event => {
-        const to = {ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: tabs.length - 1}[event.key];
+        const to = {ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: TABS.length - 1}[event.key];
         if (to === undefined) return;
         event.preventDefault();
-        const next = tabs[(to + tabs.length) % tabs.length];
+        const next = TABS[(to + TABS.length) % TABS.length];
         openTab(next.id);
         next.button.focus();
       });
@@ -619,7 +621,7 @@ const PS = (() => {
 
   return {
     data, get state() { return state; }, set, start,
-    registerFilter, registerView, onStart,
+    registerFilter, registerView, registerTab, onStart,
     el, fillTable, fillLegend, swatch, fillHowto, jumpTo, openTab, showTooltip, hideTooltip, textWidth, rovingFocus,
     personName, personLink, docUrl, dayToDate,
     dayToText, dateToDay, periodScheme, sourceMarkers, markerLabels, fitText, selectedKinds, KIND_NAMES,

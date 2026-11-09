@@ -19,6 +19,8 @@ PS.leftOutLabels = state => PS.leftOut(state).map(labelOf);
 
 PS.registerFilter({
   id: "people",
+  keys: ["without"],
+  projectKeys: ["without"],
   secondary: true,
   control(box, state, set) {
     const people = optionalPeople();

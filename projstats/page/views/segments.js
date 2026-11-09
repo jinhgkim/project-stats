@@ -64,15 +64,15 @@ PS.registerView({
     const toggleList = id => set({list: listId === id ? "none" : id === "core" ? undefined : id});
 
     if (!stats.length) {
-      figure.plot.replaceChildren(PS.el("p", {class: "empty"}, "No activity matches the filters."));
+      PS.charts.empty(figure, "No activity matches the filters.");
       return;
     }
 
-    const width = Math.max(320, figure.plot.clientWidth || figure.root.clientWidth - 32);
+    const width = PS.charts.width(figure);
     const height = 300;
     const margin = {top: 40, right: 16, bottom: 46, left: 56};
-    const innerW = width - margin.left - margin.right;
-    const innerH = height - margin.top - margin.bottom;
+    const {svg, g, innerW, innerH} = PS.charts.frame(width, height, margin,
+      "Segments. Arrow keys move between zones; the Table button shows the numbers.");
     const n = stats.length;
     // Rank r sits at x(r) and spans x(r - 0.5) to x(r + 0.5).
     const x = d3.scaleLog([0.5, n + 0.5], [0, innerW]);
@@ -86,20 +86,9 @@ PS.registerView({
     const zoneX0 = z => x(z.lo + 0.5);
     const zoneW = z => x(z.hi + 1.5) - x(z.lo + 0.5);
 
-    const svg = d3.create("svg")
-      .attr("viewBox", `0 0 ${width} ${height}`).attr("height", height)
-      .attr("role", "group")
-      .attr("aria-label", "Segments. Arrow keys move between zones; the Table button shows the numbers.");
-    const g = svg.append("g").attr("transform", `translate(${margin.left},${margin.top})`);
-
     zones.forEach(z => g.append("rect").attr("x", zoneX0(z)).attr("y", 0).attr("width", zoneW(z))
       .attr("height", innerH).attr("fill", zoneColor[z.id]));
-    g.append("g").attr("class", "grid")
-      .selectAll("line").data([0, 0.25, 0.5, 0.75, 1]).join("line")
-      .attr("x1", 0).attr("x2", innerW).attr("y1", d => y(d)).attr("y2", d => y(d));
-    g.append("g").attr("class", "axis")
-      .call(d3.axisLeft(y).tickValues([0, 0.25, 0.5, 0.75, 1]).tickFormat(d3.format(".0%")).tickSize(0).tickPadding(6))
-      .call(a => a.select(".domain").remove());
+    PS.charts.yAxis(g, y, innerW, {values: [0, 0.25, 0.5, 0.75, 1], format: d3.format(".0%")});
     const xTicks = [1, 3, 10, 30, 100, 300, 1000, 3000].filter(t => t <= n);
     g.append("g").attr("class", "axis").attr("transform", `translate(0,${innerH})`)
       .call(d3.axisBottom(x).tickValues(xTicks.length ? xTicks : [1]).tickFormat(v => String(v)).tickSize(0).tickPadding(8));
@@ -142,54 +131,37 @@ PS.registerView({
     });
 
     const picked = zones.find(z => z.id === listId);
-    if (picked) {
-      g.append("rect").attr("x", zoneX0(picked)).attr("y", 0).attr("width", zoneW(picked)).attr("height", innerH)
-        .attr("fill", "none").attr("stroke", "var(--text-primary)").attr("stroke-width", 1.5)
-        .attr("pointer-events", "none");
-    }
+    if (picked) PS.charts.outline(g, {x: zoneX0(picked), y: 0, width: zoneW(picked), height: innerH});
 
-    const hits = [];
-    zones.forEach((z, i) => {
-      const show = event => PS.showTooltip(event, z.name, [
-        {name: "people", value: z.people},
-        {name: "active now", value: z.current},
-        {name: "activity", value: z.activity},
-        {name: "share of activity", value: pct(z.share)},
-      ]);
-      hits.push(g.append("rect").attr("class", "hit clickable")
-        .attr("x", zoneX0(z)).attr("y", 0).attr("width", zoneW(z)).attr("height", innerH)
-        .attr("role", "button")
-        .attr("aria-label", `${z.name}: ${z.people} people, ${z.current} active now, ` +
-          `${pct(z.share)} of activity. Press Enter to ${z.id === listId ? "close the list" : "list them"}.`)
-        .on("pointermove", show)
-        .on("focus", event => { figure.focusRow = i; show(event.currentTarget); })
-        .on("pointerleave blur", PS.hideTooltip)
-        .on("click", () => {
-          toggleList(z.id);
-          if (!figure.details.hidden) figure.details.scrollIntoView({behavior: "smooth", block: "nearest"});
-        })
-        .on("keydown", event => {
-          if (event.key !== "Enter" && event.key !== " ") return;
-          event.preventDefault();
-          figure.refocus = true;
-          toggleList(z.id);
-        }).node());
+    const refocus = PS.charts.hits(figure, zones.map(z => g.append("rect").attr("class", "hit clickable")
+      .attr("x", zoneX0(z)).attr("y", 0).attr("width", zoneW(z)).attr("height", innerH)), {
+      keys: ["ArrowLeft", "ArrowRight"],
+      current: Math.min(figure.focusRow || 0, zones.length - 1),
+      label: i => {
+        const z = zones[i];
+        return `${z.name}: ${z.people} people, ${z.current} active now, ` +
+          `${pct(z.share)} of activity. Press Enter to ${z.id === listId ? "close the list" : "list them"}.`;
+      },
+      show: (i, anchor) => {
+        const z = zones[i];
+        PS.showTooltip(anchor, z.name, [
+          {name: "people", value: z.people},
+          {name: "active now", value: z.current},
+          {name: "activity", value: z.activity},
+          {name: "share of activity", value: pct(z.share)},
+        ]);
+      },
+      activate: i => toggleList(zones[i].id),
+      onFocus: i => { figure.focusRow = i; },
     });
-    const focusAt = Math.min(figure.focusRow || 0, hits.length - 1);
-    PS.rovingFocus(hits, focusAt, "ArrowLeft", "ArrowRight");
     figure.plot.replaceChildren(svg.node());
-    if (figure.refocus) {
-      figure.refocus = false;
-      hits[focusAt].focus();
-    }
+    refocus();
 
     if (listId === null) return;
     const list = lists[listId];
     const people = stats.filter(list.test);
     const listShare = total ? people.reduce((sum, p) => sum + p.activity, 0) / total : 0;
     const showSegment = !PS.metrics.SEGMENTS.includes(listId);
-    const close = PS.el("button", {type: "button"}, "Close");
-    close.onclick = () => set({list: "none"});
     // Active now is a filled dot before the name (hollow when not); activity
     // is a bar on one scale for the whole list, with the share beside it.
     const head = [["Person", "left"], ...(showSegment ? [["Segment", "left"]] : []), ["Activity", "left"],
@@ -216,10 +188,8 @@ PS.registerView({
       PS.el("span", {class: "status on", "aria-hidden": "true"}), `active in the last ${gap} days`,
       PS.el("span", {class: "status", "aria-hidden": "true"}), "not");
     figure.details.replaceChildren(
-      PS.el("div", {class: "details-head"},
-        PS.el("h3", {}, `${list.title} · ${people.length} ${people.length === 1 ? "person" : "people"} · ` +
-          `${pct(listShare)} of activity`),
-        close),
+      PS.charts.detailsHead(`${list.title} · ${people.length} ${people.length === 1 ? "person" : "people"} · ` +
+        `${pct(listShare)} of activity`, () => set({list: "none"})),
       key,
       people.length
         ? PS.el("div", {class: "table-wrap"},
