@@ -13,6 +13,8 @@ PS.themePatch = themes => ({theme: themes.length ? themes.map(t => PS.data.theme
 
 PS.registerFilter({
   id: "theme",
+  keys: ["theme"],
+  projectKeys: ["theme"],
   secondary: true,
   control(box, state, set) {
     const T = PS.data.themes;

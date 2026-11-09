@@ -1,8 +1,8 @@
 """Write the self-contained web page: template + embedded data + page scripts.
 
 The page's code lives in projstats/page/ as small files: core.js first, then
-metrics.js, every filter, every view, and check.js last. Adding a filter or
-view means adding one file; this module picks it up.
+metrics.js, charts.js, every filter, every view, and check.js last. Adding a
+filter or view means adding one file; this module picks it up.
 """
 
 import html
@@ -20,6 +20,7 @@ def js_files() -> list[Path]:
     return [
         PAGE_DIR / "core.js",
         PAGE_DIR / "metrics.js",
+        PAGE_DIR / "charts.js",
         *sorted((PAGE_DIR / "filters").glob("*.js")),
         *sorted((PAGE_DIR / "views").glob("*.js")),
         PAGE_DIR / "check.js",

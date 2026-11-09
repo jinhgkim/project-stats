@@ -4,6 +4,7 @@
 
 PS.registerFilter({
   id: "dates",
+  keys: ["from", "to"],
   control(box, state, set) {
     const end = PS.data.project.data_end;
     const github = PS.data.sources.pr;

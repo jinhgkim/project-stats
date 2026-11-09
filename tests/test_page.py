@@ -17,7 +17,7 @@ def embedded_data(text: str) -> dict:
 class PageTest(unittest.TestCase):
     def test_scripts_load_core_first_and_check_last(self):
         names = [p.relative_to(page.PAGE_DIR).as_posix() for p in page.js_files()]
-        self.assertEqual(names[:2], ["core.js", "metrics.js"])
+        self.assertEqual(names[:3], ["core.js", "metrics.js", "charts.js"])
         self.assertEqual(names[-1], "check.js")
         self.assertIn("filters/kind.js", names)
         views = ("summary", "period_counts", "segments", "timeline")

@@ -160,6 +160,7 @@ const pane = inPeriod => ({
   tab: inPeriod ? undefined : "people",
   order: inPeriod ? 20 : 30,
   noTable: true,
+  projectKeys: [inPeriod ? "who" : "pwho"],
   render(figure, ctx) {
     const {data, state, set} = ctx;
     const rows = inPeriod ? ctx.rows : ctx.rowsExcept("people");
