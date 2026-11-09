@@ -301,7 +301,8 @@ def cmd_export(args) -> int:
         f"people {len(data['people']['name'])}, documents {len(data['docs']['ref'])}, "
         f"activity {len(a['day'])} ({missing} without a document), "
         f"themes {len(data['themes']['name'])}, tagged documents "
-        f"{len(data['themes']['tagged'])}, releases {len(data['releases']['tag'])}"
+        f"{len(data['themes']['tagged'])}, releases {len(data['releases']['tag'])}, "
+        f"merged PRs {len(data['merged']['doc'])}"
     )
     for part, size in sizes.items():
         print(f"  {part:10} {size / 1024:8.1f} KB")

@@ -421,6 +421,24 @@ const PS = (() => {
     };
   }
 
+  // A date range that starts or ends inside a period leaves it partial too:
+  // marks `cut` on each such period (rows with `key` and `partial`, from a
+  // scheme). The period holding the data's end is partial; a range that ends
+  // earlier leaves that period out, so its mark is cleared.
+  function markRangeCuts(periods, scheme, state) {
+    const lo = state.from ? dateToDay(state.from) : null;
+    const hi = state.to ? dateToDay(state.to) : null;
+    if (lo === null && hi === null) return;
+    const first = Math.min(...Object.values(data.sources));
+    const end = data.project.data_end;
+    for (const p of periods) {
+      if (hi !== null && hi < end) p.partial = false;
+      const [start, stop] = scheme.bounds(p.key);
+      p.cut = (lo !== null && lo > Math.max(start === null ? -Infinity : start, first)) ||
+        (hi !== null && hi < Math.min(stop === null ? Infinity : stop - 1, end));
+    }
+  }
+
   // Where each included activity kind's data starts (except the earliest),
   // so a jump caused by a new data source isn't read as growth.
   const KIND_NAMES = {commit: "commits", pr: "PRs", review: "reviews", issue: "issues", comment: "comments"};
@@ -624,6 +642,6 @@ const PS = (() => {
     registerFilter, registerView, registerTab, onStart,
     el, fillTable, fillLegend, swatch, fillHowto, jumpTo, openTab, showTooltip, hideTooltip, textWidth, rovingFocus,
     personName, personLink, docUrl, dayToDate,
-    dayToText, dateToDay, periodScheme, sourceMarkers, markerLabels, fitText, selectedKinds, KIND_NAMES,
+    dayToText, dateToDay, periodScheme, markRangeCuts, sourceMarkers, markerLabels, fitText, selectedKinds, KIND_NAMES,
   };
 })();

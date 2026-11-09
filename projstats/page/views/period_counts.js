@@ -2,23 +2,6 @@
 // continuing people (together: everyone active). Choosing a column lists its
 // people under those three groups.
 
-// A date range that starts or ends inside a period leaves it partial too.
-// metrics marks the period holding the data's end; a range that ends earlier
-// leaves that period out, so its mark is cleared.
-function markRangeCuts(periods, scheme, state, data) {
-  const lo = state.from ? PS.dateToDay(state.from) : null;
-  const hi = state.to ? PS.dateToDay(state.to) : null;
-  if (lo === null && hi === null) return;
-  const first = Math.min(...Object.values(data.sources));
-  const end = data.project.data_end;
-  for (const p of periods) {
-    if (hi !== null && hi < end) p.partial = false;
-    const [start, stop] = scheme.bounds(p.key);
-    p.cut = (lo !== null && lo > Math.max(start === null ? -Infinity : start, first)) ||
-      (hi !== null && hi < Math.min(stop === null ? Infinity : stop - 1, end));
-  }
-}
-
 PS.registerView({
   id: "period-counts",
   title: "Contributors per period",
@@ -28,7 +11,7 @@ PS.registerView({
     const gap = data.settings.return_gap_days;
     const scheme = PS.periodScheme(state.period);
     const periods = PS.metrics.periodCounts(rows, data, scheme, gap);
-    markRangeCuts(periods, scheme, state, data);
+    PS.markRangeCuts(periods, scheme, state);
     const partial = p => p.partial || p.cut;
     const ranged = Boolean(state.from || state.to);
 

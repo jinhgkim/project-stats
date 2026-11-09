@@ -20,7 +20,7 @@ class PageTest(unittest.TestCase):
         self.assertEqual(names[:3], ["core.js", "metrics.js", "charts.js"])
         self.assertEqual(names[-1], "check.js")
         self.assertIn("filters/kind.js", names)
-        views = ("summary", "period_counts", "segments", "timeline")
+        views = ("summary", "period_counts", "segments", "timeline", "merge_times")
         for view in (*views, "themes_over_time", "theme_table", "activity"):
             self.assertIn(f"views/{view}.js", names)
         for name in ("people", "segment_rules", "theme"):
