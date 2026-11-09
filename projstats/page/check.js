@@ -69,6 +69,12 @@ PS.onStart(() => {
       Object.entries(ref.theme_trends.labels).sort((a, b) => a[0].localeCompare(b[0])));
   }
 
+  for (const want of ref.merge_times || []) {
+    const got = PS.metrics.mergeTimes(rowsOf(null), data, PS.periodScheme(want.period))
+      .map(r => [r.label, ...r.counts, r.median, r.partial]);
+    compare(`time to merge by ${want.period}`, got, want.rows);
+  }
+
   const passed = results.filter(r => r.ok).length;
   const box = PS.el("div", {class: "box"},
     PS.el("span", {class: passed === results.length ? "ok" : "bad"},

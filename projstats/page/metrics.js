@@ -1,5 +1,6 @@
-// Retention math in the browser, mirroring projstats/retention.py at day
-// precision. #check compares these results with Python's reference numbers.
+// Retention, theme, and time-to-merge math in the browser, mirroring
+// projstats/retention.py, trends.py, and merges.py at day precision. #check
+// compares these results with Python's reference numbers.
 
 PS.metrics = (() => {
   // rows: activity indexes; scheme: PS.periodScheme(...); gapDays: return gap.
@@ -266,8 +267,60 @@ PS.metrics = (() => {
     return {periods, recent, earlier, trends, contributors, present, firstDoc, lastDay, periodOf: indexOf};
   }
 
+  // Time-to-merge buckets: name and the fewest whole days a PR in it took.
+  const MERGE_BUCKETS = [
+    {name: "Same day", fewest: 0},
+    {name: "1–6 days", fewest: 1},
+    {name: "7–29 days", fewest: 7},
+    {name: "30+ days", fewest: 30},
+  ];
+  const bucketOf = days => MERGE_BUCKETS.filter(b => b.fewest > 0 && days >= b.fewest).length;
+
+  // statistics.median: the middle value, or the mean of the middle two.
+  function median(values) {
+    if (!values.length) return null;
+    const v = [...values].sort((a, b) => a - b);
+    const mid = v.length >> 1;
+    return v.length % 2 ? v[mid] : (v[mid - 1] + v[mid]) / 2;
+  }
+
+  // PRs merged per period, keyed by the merge day, counted by bucket of whole
+  // days from opened to merged. Only "pr" rows count (opened by people, not
+  // bots). inRange(day) picks merge days (the date filter). One row per
+  // period from the first to the last merge, empty ones included, each with
+  // its PRs as {doc, row, days}. Mirrors merges.merge_counts().
+  function mergeTimes(rows, data, scheme, inRange = () => true) {
+    const A = data.activity;
+    const pr = data.kinds.indexOf("pr");
+    const mergedDay = new Map(data.merged.doc.map((d, k) => [d, data.merged.day[k]]));
+    const byKey = new Map();
+    for (const i of rows) {
+      if (A.kind[i] !== pr) continue;
+      const day = mergedDay.get(A.doc[i]);
+      if (day === undefined || !inRange(day)) continue;
+      const key = scheme.key(day);
+      if (!byKey.has(key)) byKey.set(key, []);
+      byKey.get(key).push({doc: A.doc[i], row: i, days: day - A.day[i]});
+    }
+    if (!byKey.size) return [];
+    const keys = [...byKey.keys()];
+    const endKey = scheme.key(data.project.data_end);
+    const out = [];
+    for (let key = Math.min(...keys); key <= Math.max(...keys); key++) {
+      const prs = byKey.get(key) || [];
+      const counts = MERGE_BUCKETS.map(() => 0);
+      for (const p of prs) counts[bucketOf(p.days)] += 1;
+      out.push({
+        key, label: scheme.label(key), short: scheme.short(key), counts, merged: prs.length,
+        median: median(prs.map(p => p.days)), partial: key === endKey, prs,
+      });
+    }
+    return out;
+  }
+
   return {
-    periodCounts, personStats, themeIndex, themeTrends,
+    periodCounts, personStats, themeIndex, themeTrends, mergeTimes,
     SEGMENTS: ["core", "regular", "casual", "one-time"],
+    MERGE_BUCKETS, bucketOf,
   };
 })();

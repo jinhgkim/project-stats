@@ -12,9 +12,7 @@ const GROUPS = [
   {name: "Discussion", kinds: KIND_GROUPS.discussion, color: "var(--kind-discussion)"},
 ];
 const groupOf = (kind, groups = GROUPS) => groups.find(g => g.kinds.includes(kind));
-const dot = group => PS.el("span", {
-  class: "status on", style: `background: ${group.color}; border-color: ${group.color}`, "aria-hidden": "true",
-});
+const dot = group => PS.charts.dot(group.color);
 const KIND_NAMES = {
   commit: ["commit", "commits"], pr: ["PR opened", "PRs opened"], review: ["review", "reviews"],
   issue: ["issue opened", "issues opened"], comment: ["comment", "comments"],
@@ -84,9 +82,9 @@ PS.activityOrder = ({key, dir}) => {
 };
 
 // The sort after a click on column `key`: the same column flips; another starts
-// newest first (Date) or A to Z.
-PS.nextSort = (sort, key) => ({
-  key, dir: sort.key === key ? (sort.dir === "asc" ? "desc" : "asc") : key === "date" ? "desc" : "asc",
+// with the largest or newest first when `descFirst` (Date by default), else A to Z.
+PS.nextSort = (sort, key, descFirst = key === "date") => ({
+  key, dir: sort.key === key ? (sort.dir === "asc" ? "desc" : "asc") : descFirst ? "desc" : "asc",
 });
 
 // The Date / Activity / Item table for activity rows, already ordered by `sort`
@@ -95,29 +93,20 @@ PS.nextSort = (sort, key) => ({
 // colors the dots.
 PS.activityTable = (rows, {sort, onSort, people = false, groups = GROUPS}) => {
   const {activity: A, kinds, docs} = PS.data;
-  const header = (key, label) => {
-    const on = sort.key === key;
-    const order = key === "date" ? (sort.dir === "asc" ? "oldest first" : "newest first")
-      : sort.dir === "asc" ? "A to Z" : "Z to A";
-    const button = PS.el("button", {
-      type: "button", class: "sort", "aria-label": on ? `${label}, ${order}. Click to reverse.` : `Sort by ${label}`,
-    }, label, PS.el("span", {class: on ? (sort.dir === "asc" ? "chev up" : "chev") : "sort-none", "aria-hidden": "true"}));
-    button.onclick = () => onSort(key);
-    return PS.el("th", {scope: "col", "aria-sort": on ? (sort.dir === "asc" ? "ascending" : "descending") : "none"}, button);
-  };
   const item = i => {
     const d = A.doc[i];
     return d < 0 ? "–" : PS.el("a", {href: PS.docUrl(d)}, docs.title[d]);
   };
-  return PS.el("div", {class: "table-wrap"}, PS.el("table", {class: people ? "data activity with-person" : "data activity"},
-    PS.el("thead", {}, PS.el("tr", {},
-      header("date", "Date"), header("activity", "Activity"), people ? header("person", "Person") : null,
-      header("item", "Item"))),
-    PS.el("tbody", {}, rows.map(i => PS.el("tr", {},
-      PS.el("td", {}, PS.dayToText(A.day[i])),
-      PS.el("td", {}, dot(groupOf(kinds[A.kind[i]], groups)), KIND_LABELS[kinds[A.kind[i]]] || kinds[A.kind[i]]),
-      people ? PS.el("td", {}, PS.personName(A.person[i])) : null,
-      PS.el("td", {}, item(i)))))));
+  return PS.charts.listTable(rows, {
+    sort, onSort, className: people ? "data activity with-person" : "data activity",
+    columns: [
+      {key: "date", label: "Date", order: "date", cell: i => PS.dayToText(A.day[i])},
+      {key: "activity", label: "Activity",
+       cell: i => [dot(groupOf(kinds[A.kind[i]], groups)), KIND_LABELS[kinds[A.kind[i]]] || kinds[A.kind[i]]]},
+      people ? {key: "person", label: "Person", cell: i => PS.personName(A.person[i])} : null,
+      {key: "item", label: "Item", cell: item},
+    ].filter(Boolean),
+  });
 };
 
 // The pane under a theme view: the activity behind a theme, or one of its heatmap

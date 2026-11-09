@@ -175,6 +175,33 @@ class ExportTest(unittest.TestCase):
             [p["label"] for p in ref["theme_trends"]["periods"]], ["1.0"]
         )
 
+    def test_merged_prs_and_their_reference_numbers(self):
+        self.assertEqual(self.data["merged"], {"doc": [], "day": []})
+        self.assertEqual(
+            self.data["reference"]["merge_times"],
+            [{"period": "year", "rows": []}, {"period": "release", "rows": []}],
+        )
+        with self.conn:
+            self.conn.execute(
+                "UPDATE items SET merged_at = ? WHERE id IN ('P5', 'P7')",
+                (ts("2020-01-20T12:00"),),
+            )
+        data = export.build(self.conn, self.cfg, generated="2026-11-06")
+        pr5 = data["docs"]["ref"].index("5")
+        # P7 vanished, so only P5 is listed.
+        self.assertEqual(
+            data["merged"], {"doc": [pr5], "day": [ts("2020-01-20T00:00") // 86_400]}
+        )
+        # Opened 2020-01-15, merged 5 days later; the data ends in 2020, after
+        # release 1.0 (2020-06-01).
+        self.assertEqual(
+            data["reference"]["merge_times"],
+            [
+                {"period": "year", "rows": [["2020", 0, 1, 0, 0, 5, True]]},
+                {"period": "release", "rows": [["1.0", 0, 1, 0, 0, 5, False]]},
+            ],
+        )
+
     def test_excluded_items_leave_activity_out(self):
         self.assertEqual(self.data["project"]["excluded_items"], [])
         self.cfg.activity = ActivityConfig(exclude_items=[5])

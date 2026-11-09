@@ -1,5 +1,6 @@
 """Compact JSON for the page: people, documents, activity, themes, releases,
-and reference numbers from the tested Python code for the page's #check mode.
+merged PRs, and reference numbers from the tested Python code for the page's
+#check mode.
 
 Large parts are columnar (one array per field) and use indexes instead of
 repeated strings. Times are whole days since 1970-01-01 (UTC). Emails are
@@ -14,7 +15,7 @@ import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
 
-from projstats import documents, identity, releases, retention, trends
+from projstats import documents, identity, merges, releases, retention, trends
 from projstats.config import Config
 
 VERSION = 1
@@ -29,6 +30,9 @@ REFERENCE_PERIOD_COUNTS = [
     (["commit", "pr", "issue"], "release"),
 ]
 REFERENCE_SEGMENTS = [None, ["commit"]]
+# Periods of the time-to-merge numbers checked by #check ("release" skipped
+# when there are no releases).
+REFERENCE_MERGE_PERIODS = ["year", "release"]
 
 
 def day(ts: int) -> int:
@@ -99,6 +103,12 @@ def build(conn: sqlite3.Connection, cfg: Config, generated: str | None = None) -
     for a in activity:
         sources[a.kind] = min(sources.get(a.kind, a.ts), a.ts)
 
+    merged = sorted(
+        (doc_index[ref], day(ts))
+        for ref, ts in merges.load_merged(conn).items()
+        if ref in doc_index
+    )
+
     data = {
         "version": VERSION,
         "project": {
@@ -140,6 +150,8 @@ def build(conn: sqlite3.Connection, cfg: Config, generated: str | None = None) -
             "tag": [r.tag for r in rels],
             "day": [day(r.released_at) for r in rels],
         },
+        # Merged PRs: document index and merge day.
+        "merged": {"doc": [d for d, _ in merged], "day": [x for _, x in merged]},
         "sources": {k: day(ts) for k, ts in sorted(sources.items())},
     }
     data["reference"] = reference(cfg, people, docs, activity, rels, links, conn)
@@ -223,10 +235,26 @@ def reference(cfg, people, docs, activity, rels, links, conn) -> dict:
             "labels": {t.name: t.label for t in report.trends},
         }
 
+    merged = {ref: _day_start(ts) for ref, ts in merges.load_merged(conn).items()}
+    data_end = max((a.ts for a in by_day), default=0)
+    merge_times = []
+    for period in REFERENCE_MERGE_PERIODS:
+        if period == "release" and not rels:
+            continue
+        periods = documents.release_periods(day_rels) if period == "release" else period
+        rows = merges.merge_counts(by_day, merged, periods, data_end)
+        merge_times.append(
+            {
+                "period": period,
+                "rows": [[x.label, *x.counts, x.median, x.partial] for x in rows],
+            }
+        )
+
     return {
         "period_counts": period_counts,
         "segments": segments,
         "theme_trends": theme_trends,
+        "merge_times": merge_times,
     }
 
 

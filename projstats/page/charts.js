@@ -93,11 +93,44 @@ PS.charts = (() => {
       .attr("pointer-events", "none");
   }
 
-  // The details area's title row, with its Close button.
-  function detailsHead(title, onClose) {
+  // The details area's title row: the title, any `extra` buttons, and Close.
+  function detailsHead(title, onClose, extra = []) {
     const close = PS.el("button", {type: "button"}, "Close");
     close.onclick = onClose;
-    return PS.el("div", {class: "details-head"}, PS.el("h3", {}, title), close);
+    return PS.el("div", {class: "details-head"}, PS.el("h3", {}, title), ...extra, close);
+  }
+
+  // A colored dot for a list row or a legend key.
+  function dot(color) {
+    return PS.el("span", {
+      class: "status on", style: `background: ${color}; border-color: ${color}`, "aria-hidden": "true",
+    });
+  }
+
+  // Words for a column's sort order, read out by screen readers.
+  const ORDER_WORDS = {
+    text: {asc: "A to Z", desc: "Z to A"},
+    date: {asc: "oldest first", desc: "newest first"},
+    count: {asc: "fewest first", desc: "most first"},
+  };
+
+  // A list table with sortable columns, as in the activity panes. columns:
+  // [{key, label, cell(item): text or nodes, order: "text" | "date" | "count"}].
+  // `items` come already ordered by `sort` ({key, dir}) and cut to length; a
+  // click on a header calls onSort(key).
+  function listTable(items, {columns, sort, onSort, className}) {
+    const header = ({key, label, order = "text"}) => {
+      const on = sort.key === key;
+      const words = ORDER_WORDS[order][sort.dir];
+      const button = PS.el("button", {
+        type: "button", class: "sort", "aria-label": on ? `${label}, ${words}. Click to reverse.` : `Sort by ${label}`,
+      }, label, PS.el("span", {class: on ? (sort.dir === "asc" ? "chev up" : "chev") : "sort-none", "aria-hidden": "true"}));
+      button.onclick = () => onSort(key);
+      return PS.el("th", {scope: "col", "aria-sort": on ? (sort.dir === "asc" ? "ascending" : "descending") : "none"}, button);
+    };
+    return PS.el("div", {class: "table-wrap"}, PS.el("table", {class: className},
+      PS.el("thead", {}, PS.el("tr", {}, columns.map(header))),
+      PS.el("tbody", {}, items.map(item => PS.el("tr", {}, columns.map(c => PS.el("td", {}, c.cell(item))))))));
   }
 
   // A fixed header SVG over a scrolling body; returns the scrolling element.
@@ -328,6 +361,6 @@ PS.charts = (() => {
 
   return {
     width: widthOf, empty, svg, frame, yAxis, labelEvery, bandAxis, hits, outline, detailsHead,
-    scrollArea, columns, heatmap,
+    dot, listTable, scrollArea, columns, heatmap,
   };
 })();

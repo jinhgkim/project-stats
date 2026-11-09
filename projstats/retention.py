@@ -168,8 +168,9 @@ def _by_person(activity: list[Activity]) -> dict[str, list[int]]:
     return {p: sorted(ts) for p, ts in times.items()}
 
 
-def _scheme(period) -> tuple[Callable, Callable, Callable]:
-    """(key of a timestamp, bounds of a key, label of a key) for a period."""
+def period_scheme(period) -> tuple[Callable, Callable, Callable]:
+    """(key of a timestamp, bounds of a key, label of a key) for a period:
+    "month", "quarter", "year", or a list of cycles (see period_counts)."""
     if isinstance(period, str):
         return (
             lambda ts: period_key(ts, period),
@@ -195,7 +196,7 @@ def period_counts(
     """
     if not activity:
         return []
-    key_of, bounds_of, label_of = _scheme(period)
+    key_of, bounds_of, label_of = period_scheme(period)
     gap = return_gap_days * DAY
     data_end = max(a.ts for a in activity)
     keys = [key_of(a.ts) for a in activity]
