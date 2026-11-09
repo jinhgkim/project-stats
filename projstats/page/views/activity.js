@@ -11,7 +11,13 @@ const GROUPS = [
   {name: "Code", kinds: KIND_GROUPS.code, color: "var(--kind-code)"},
   {name: "Discussion", kinds: KIND_GROUPS.discussion, color: "var(--kind-discussion)"},
 ];
-const groupOf = kind => GROUPS.find(g => g.kinds.includes(kind));
+// The theme views count only commits as code, as trends.CODE_KINDS does, so a
+// PR opened is discussion there.
+PS.COMMIT_GROUPS = [
+  {name: "Code", kinds: ["commit"], color: "var(--kind-code)"},
+  {name: "Discussion", kinds: ["pr", ...KIND_GROUPS.discussion], color: "var(--kind-discussion)"},
+];
+const groupOf = (kind, groups = GROUPS) => groups.find(g => g.kinds.includes(kind));
 const dot = group => PS.el("span", {
   class: "status on", style: `background: ${group.color}; border-color: ${group.color}`, "aria-hidden": "true",
 });
@@ -47,6 +53,112 @@ PS.personButton = (person, state, prefix = "") => {
   }, PS.personName(person));
 };
 
+// Legend keys for activity rows: one per group (Code, Discussion), with its counts.
+PS.activityKeys = (rows, groups = GROUPS) => {
+  const A = PS.data.activity;
+  const counts = new Map();
+  for (const i of rows) counts.set(A.kind[i], (counts.get(A.kind[i]) || 0) + 1);
+  const num = n => n.toLocaleString("en-US");
+  return groups.map(g => {
+    const inGroup = [...counts].filter(([k]) => g.kinds.includes(PS.data.kinds[k])).sort((a, b) => b[1] - a[1] || a[0] - b[0]);
+    if (!inGroup.length) return null;
+    const detail = inGroup.map(([k, n]) => `${num(n)} ${kindName(PS.data.kinds[k], n)}`).join(", ");
+    return PS.el("span", {class: "key"}, dot(g),
+      `${g.name} ${num(inGroup.reduce((sum, [, n]) => sum + n, 0))} (${detail})`);
+  }).filter(Boolean);
+};
+
+// The line above an activity table, for both panes that list one: the total,
+// then the keys with their counts. Returns the nodes to put in a `.legend`.
+PS.activitySummary = (rows, groups = GROUPS) => [
+  PS.el("span", {class: "total"}, `${rows.length.toLocaleString("en-US")} ${rows.length === 1 ? "activity" : "activities"}`),
+  ...PS.activityKeys(rows, groups),
+];
+
+// Orders activity rows by a table column (`key`: date, activity, person, or
+// item) and `dir` ("asc" or "desc"). Ties go newest first.
+PS.activityOrder = ({key, dir}) => {
+  const {activity: A, kinds, docs} = PS.data;
+  const text = {
+    activity: i => KIND_LABELS[kinds[A.kind[i]]] || kinds[A.kind[i]],
+    person: i => PS.personName(A.person[i]),
+    item: i => (A.doc[i] < 0 ? "" : docs.title[A.doc[i]]),
+  }[key];
+  const sign = dir === "asc" ? 1 : -1;
+  return (a, b) => sign * (text ? text(a).localeCompare(text(b)) : A.day[a] - A.day[b]) ||
+    A.day[b] - A.day[a] || a - b;
+};
+
+// The sort after a click on column `key`: the same column flips; another starts
+// newest first (Date) or A to Z.
+PS.nextSort = (sort, key) => ({
+  key, dir: sort.key === key ? (sort.dir === "asc" ? "desc" : "asc") : key === "date" ? "desc" : "asc",
+});
+
+// The Date / Activity / Item table for activity rows, already ordered by `sort`
+// ({key, dir}) and cut to length. A click on a header calls `onSort(key)`;
+// `people` adds a Person column, for lists that mix several people. `groups`
+// colors the dots.
+PS.activityTable = (rows, {sort, onSort, people = false, groups = GROUPS}) => {
+  const {activity: A, kinds, docs} = PS.data;
+  const header = (key, label) => {
+    const on = sort.key === key;
+    const order = key === "date" ? (sort.dir === "asc" ? "oldest first" : "newest first")
+      : sort.dir === "asc" ? "A to Z" : "Z to A";
+    const button = PS.el("button", {
+      type: "button", class: "sort", "aria-label": on ? `${label}, ${order}. Click to reverse.` : `Sort by ${label}`,
+    }, label, PS.el("span", {class: on ? (sort.dir === "asc" ? "chev up" : "chev") : "sort-none", "aria-hidden": "true"}));
+    button.onclick = () => onSort(key);
+    return PS.el("th", {scope: "col", "aria-sort": on ? (sort.dir === "asc" ? "ascending" : "descending") : "none"}, button);
+  };
+  const item = i => {
+    const d = A.doc[i];
+    return d < 0 ? "–" : PS.el("a", {href: PS.docUrl(d)}, docs.title[d]);
+  };
+  return PS.el("div", {class: "table-wrap"}, PS.el("table", {class: people ? "data activity with-person" : "data activity"},
+    PS.el("thead", {}, PS.el("tr", {},
+      header("date", "Date"), header("activity", "Activity"), people ? header("person", "Person") : null,
+      header("item", "Item"))),
+    PS.el("tbody", {}, rows.map(i => PS.el("tr", {},
+      PS.el("td", {}, PS.dayToText(A.day[i])),
+      PS.el("td", {}, dot(groupOf(kinds[A.kind[i]], groups)), KIND_LABELS[kinds[A.kind[i]]] || kinds[A.kind[i]]),
+      people ? PS.el("td", {}, PS.personName(A.person[i])) : null,
+      PS.el("td", {}, item(i)))))));
+};
+
+// The pane under a theme view: the activity behind a theme, or one of its heatmap
+// cells, as a title with buttons, the total and keys, and a sortable table.
+// Returns the nodes for `figure.details`. The sort and "Show all" live on `figure`;
+// `extra` are buttons placed before Close, `rerender` redraws the view.
+PS.themeActivity = (figure, {title, rows, extra = [], onClose, rerender}) => {
+  if (!figure.sort) figure.sort = {key: "date", dir: "desc"};
+  const mine = rows.slice().sort(PS.activityOrder(figure.sort));
+  const limit = 50;
+  const close = PS.el("button", {type: "button"}, "Close");
+  close.onclick = onClose;
+  const toggle = mine.length > limit ? PS.el("button", {type: "button"},
+    figure.showAll ? "Show less" : `Show all ${mine.length.toLocaleString("en-US")}`) : null;
+  if (toggle) {
+    toggle.onclick = () => {
+      figure.showAll = !figure.showAll;
+      rerender();
+    };
+  }
+  return [
+    PS.el("div", {class: "details-head"}, PS.el("h3", {}, title), toggle, ...extra, close),
+    PS.el("div", {class: "legend"}, PS.activitySummary(mine, PS.COMMIT_GROUPS)),
+    mine.length ? PS.activityTable(figure.showAll ? mine : mine.slice(0, limit), {
+      sort: figure.sort,
+      people: true,
+      groups: PS.COMMIT_GROUPS,
+      onSort: key => {
+        figure.sort = PS.nextSort(figure.sort, key);
+        rerender();
+      },
+    }) : PS.el("p", {class: "empty"}, "No activity matches the current filters."),
+  ].filter(Boolean);
+};
+
 // `inPeriod`: the Overview's pane, limited to the open column. Otherwise the
 // People tab's, whose rows ignore the left-out filter like its list does.
 const pane = inPeriod => ({
@@ -66,25 +178,17 @@ const pane = inPeriod => ({
     if (figure.root.hidden) return;
 
     const scheme = inPeriod ? PS.periodScheme(kind) : null;
+    if (!figure.sort) figure.sort = {key: "date", dir: "desc"};
     const mine = rows
       .filter(i => A.person[i] === person && (!scheme || scheme.key(A.day[i]) === Number(pickKey)))
-      .sort((a, b) => (figure.oldestFirst ? A.day[a] - A.day[b] : A.day[b] - A.day[a]));
+      .sort(PS.activityOrder(figure.sort));
 
     figure.root.querySelector(".head h3").replaceChildren(PS.personLink(person));
-    const counts = new Map();
-    for (const i of mine) counts.set(A.kind[i], (counts.get(A.kind[i]) || 0) + 1);
     const num = n => n.toLocaleString("en-US");
-    const groups = GROUPS.map(g => {
-      const inGroup = [...counts].filter(([k]) => g.kinds.includes(data.kinds[k])).sort((a, b) => b[1] - a[1]);
-      if (!inGroup.length) return null;
-      const detail = inGroup.map(([k, n]) => `${num(n)} ${kindName(data.kinds[k], n)}`).join(", ");
-      return PS.el("span", {class: "key"}, dot(g),
-        `${g.name} ${num(inGroup.reduce((sum, [, n]) => sum + n, 0))} (${detail})`);
-    });
-    figure.subtitle.textContent = `${scheme ? `${scheme.label(Number(pickKey))} · ` : ""}` +
-      `${num(mine.length)} ${mine.length === 1 ? "activity" : "activities"}`;
-    figure.legend.hidden = groups.every(g => !g);
-    figure.legend.replaceChildren(...groups.filter(Boolean));
+    figure.subtitle.textContent = scheme ? scheme.label(Number(pickKey)) : "";
+    figure.subtitle.hidden = !scheme;
+    figure.legend.hidden = false;
+    figure.legend.replaceChildren(...PS.activitySummary(mine));
 
     const id = `${person}|${inPeriod ? state.pick : ""}`;
     if (figure.shownFor !== id) {
@@ -107,29 +211,13 @@ const pane = inPeriod => ({
       figure.plot.replaceChildren(PS.el("p", {class: "empty"}, "No activity matches the current filters."));
       return;
     }
-    const sortButton = PS.el("button", {
-      type: "button", class: "sort",
-      "aria-label": `Date, ${figure.oldestFirst ? "oldest" : "newest"} first. Click to reverse.`,
-    }, "Date", PS.el("span", {class: figure.oldestFirst ? "chev up" : "chev", "aria-hidden": "true"}));
-    sortButton.onclick = () => {
-      figure.oldestFirst = !figure.oldestFirst;
-      this.render(figure, ctx);
-    };
-    const item = i => {
-      const d = A.doc[i];
-      return d < 0 ? "–" : PS.el("a", {href: PS.docUrl(d)}, data.docs.title[d]);
-    };
-    figure.plot.replaceChildren(
-      PS.el("div", {class: "table-wrap"}, PS.el("table", {class: "data activity"},
-        PS.el("thead", {}, PS.el("tr", {},
-          PS.el("th", {scope: "col", "aria-sort": figure.oldestFirst ? "ascending" : "descending"}, sortButton),
-          PS.el("th", {scope: "col"}, "Activity"), PS.el("th", {scope: "col"}, "Item"))),
-        PS.el("tbody", {}, (figure.showAll ? mine : mine.slice(0, LIMIT)).map(i => PS.el("tr", {},
-          PS.el("td", {}, PS.dayToText(A.day[i])),
-          PS.el("td", {}, dot(groupOf(data.kinds[A.kind[i]])),
-            KIND_LABELS[data.kinds[A.kind[i]]] || data.kinds[A.kind[i]]),
-          PS.el("td", {}, item(i))))))),
-    );
+    figure.plot.replaceChildren(PS.activityTable(figure.showAll ? mine : mine.slice(0, LIMIT), {
+      sort: figure.sort,
+      onSort: key => {
+        figure.sort = PS.nextSort(figure.sort, key);
+        this.render(figure, ctx);
+      },
+    }));
   },
 });
 

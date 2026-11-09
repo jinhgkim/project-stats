@@ -50,11 +50,16 @@ PS.registerView({
       };
     }).sort((a, b) => (b.trend ? b.trend.recentShare : 0) - (a.trend ? a.trend.recentShare : 0) ||
       b.docs.length - a.docs.length || name(a.t).localeCompare(name(b.t)));
+    // Documents is the only sortable column; a third click restores the order above.
+    if (figure.docSort) {
+      const sign = figure.docSort === "asc" ? 1 : -1;
+      themes.sort((a, b) => sign * (a.docs.length - b.docs.length) || name(a.t).localeCompare(name(b.t)));
+    }
 
-    figure.subtitle.textContent = "What's in each theme, and who works on it? Choose a theme to see its commits, PRs, and issues.";
+    figure.subtitle.textContent = "What's in each theme, and who works on it? Choose a theme to see the activity on it.";
     PS.fillHowto(figure, [
       `Documents: commits, PRs, and issues tagged with the theme${state.from || state.to ? " within the selected dates" : ""}.`,
-      `Peak: measured per ${scheme.name}, as in Themes over time.`,
+      `Peak: the ${scheme.name} with the theme's largest share, and that share, as in Themes over time.`,
       "Top people: most activity on the theme's documents; the list below shows five.",
     ]);
 
@@ -66,8 +71,23 @@ PS.registerView({
 
     const selected = PS.selectedThemes(state);
     if (figure.open === undefined) figure.open = selected.length ? selected[0] : null;
+    const sortButton = PS.el("button", {
+      type: "button", class: "sort",
+      "aria-label": figure.docSort
+        ? `Documents, ${figure.docSort === "asc" ? "fewest" : "most"} first. ` +
+          `Click to ${figure.docSort === "asc" ? "restore the default order" : "reverse"}.`
+        : "Sort by Documents",
+    }, "Documents", PS.el("span", {
+      class: figure.docSort ? (figure.docSort === "asc" ? "chev up" : "chev") : "sort-none", "aria-hidden": "true",
+    }));
+    sortButton.onclick = () => {
+      figure.docSort = figure.docSort === undefined ? "desc" : figure.docSort === "desc" ? "asc" : undefined;
+      this.render(figure, {data, rowsExcept, state, set});
+    };
     const head = PS.el("tr", {}, ["Theme", "Documents", "First seen", "Last seen",
-      "Peak", "Peak share", "Top people"].map(h => PS.el("th", {scope: "col"}, h)));
+      "Peak", "Top people"].map(h => h === "Documents"
+      ? PS.el("th", {scope: "col", "aria-sort": figure.docSort ? (figure.docSort === "asc" ? "ascending" : "descending") : "none"}, sortButton)
+      : PS.el("th", {scope: "col"}, h)));
     const body = themes.map(x => {
       const button = PS.el("button", {
         type: "button", class: "link-button", "aria-expanded": String(figure.open === x.t),
@@ -83,8 +103,7 @@ PS.registerView({
         PS.el("td", {}, x.docs.length),
         PS.el("td", {class: "nowrap"}, x.first === null ? "–" : day(x.first)),
         PS.el("td", {class: "nowrap"}, x.last === null ? "–" : day(x.last)),
-        PS.el("td", {class: "nowrap"}, x.peak ? x.peak.label : "–"),
-        PS.el("td", {class: "nowrap"}, x.peak ? pct(x.peak.share) : "–"),
+        PS.el("td", {class: "nowrap"}, x.peak ? `${x.peak.label} · ${pct(x.peak.share)}` : "–"),
         PS.el("td", {class: "people"}, x.contributors.slice(0, 3)
           .map(c => `${PS.personName(c.person)} ${c.code + c.discussion}`).join(", ") || "–"));
     });
@@ -100,36 +119,22 @@ PS.registerView({
         : selected.length ? "Add this theme to the filter" : "Filter the page to this theme");
     filterButton.onclick = () => set(PS.themePatch(
       filtered ? selected.filter(t => t !== open.t) : [...selected, open.t]));
-    const close = PS.el("button", {type: "button"}, "Close");
-    close.onclick = () => {
-      figure.open = null;
-      this.render(figure, {data, rowsExcept, state, set});
-    };
-    const kindName = {pr: "PR", issue: "issue", commit: "commit"};
-    const {themesOf} = PS.metrics.themeIndex(data);
-    const limit = figure.showAll ? open.docs.length : 50;
-    const items = open.docs.slice(0, limit).map(d => {
-      const others = (themesOf.get(d) || []).filter(t => t !== open.t).map(name);
-      const ref = data.docs.source[d] === "commit" ? data.docs.ref[d].slice(0, 7) : `#${data.docs.ref[d]}`;
-      return PS.el("li", {},
-        PS.el("span", {class: "meta"}, `${day(data.docs.day[d])} · ${kindName[data.docs.source[d]] || data.docs.source[d]} ${ref}`),
-        PS.el("a", {href: PS.docUrl(d)}, data.docs.title[d]),
-        others.length ? PS.el("span", {class: "meta"}, `also: ${others.join(", ")}`) : null);
+    // The theme's activity over the whole range, after the filters other than Theme.
+    const {themesOf, tagged} = PS.metrics.themeIndex(data);
+    const A = data.activity;
+    const mine = rows.filter(i => {
+      const d = A.doc[i];
+      return d >= 0 && tagged[d] && (themesOf.get(d) || []).includes(open.t);
     });
-    const more = open.docs.length > limit ? PS.el("button", {type: "button"}, `Show all ${open.docs.length}`) : null;
-    if (more) {
-      more.onclick = () => {
-        figure.showAll = true;
+    figure.details.replaceChildren(...PS.themeActivity(figure, {
+      title: name(open.t),
+      rows: mine,
+      extra: [filterButton],
+      onClose: () => {
+        figure.open = null;
         this.render(figure, {data, rowsExcept, state, set});
-      };
-    }
-    figure.details.replaceChildren(...[
-      PS.el("div", {class: "details-head"},
-        PS.el("h3", {}, `${name(open.t)} · ${open.docs.length} document${open.docs.length === 1 ? "" : "s"}`),
-        filterButton, close),
-      open.contributors.length ? PS.el("p", {class: "meta"}, "Most active: " + open.contributors
-        .map(c => `${PS.personName(c.person)} (${c.code} code, ${c.discussion} discussion)`).join(", ")) : null,
-      PS.el("ul", {class: "doc-list"}, items),
-      more].filter(Boolean));
+      },
+      rerender: () => this.render(figure, {data, rowsExcept, state, set}),
+    }));
   },
 });

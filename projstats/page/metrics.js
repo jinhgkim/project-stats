@@ -261,7 +261,7 @@ PS.metrics = (() => {
         PS.personName(a[0]).localeCompare(PS.personName(b[0])));
       contributors.set(t, ranked.slice(0, top).map(([person, c]) => ({person, ...c})));
     }
-    return {periods, recent, earlier, trends, contributors, present, firstDoc, lastDay};
+    return {periods, recent, earlier, trends, contributors, present, firstDoc, lastDay, periodOf: indexOf};
   }
 
   return {

@@ -154,6 +154,11 @@
   button[aria-expanded="true"] .chev, .chev.up { margin-top: 3px; transform: rotate(-135deg); }
   button.sort { display: inline-flex; gap: 6px; align-items: center; border: none; background: none; padding: 0; font-weight: 600; color: inherit; }
   button.sort:hover { background: none; color: var(--text-primary); }
+  /* A sortable column that isn't the sorted one: an up and a down arrow side by side,
+     faded, a different shape from the single chevron that shows the direction. */
+  .sort-none { flex: none; opacity: 0.55; color: var(--text-muted); font-size: 12px; font-weight: 400; line-height: 1; }
+  .sort-none::before { content: "\2191\2193"; letter-spacing: -1px; }
+  button.sort:hover .sort-none, button.sort:focus-visible .sort-none { opacity: 1; }
   .menu { position: relative; display: inline-block; }
   .menu-button { display: inline-flex; gap: 10px; align-items: center; justify-content: space-between; min-width: 170px; }
   .menu-list {
@@ -230,6 +235,8 @@
   .legend { display: flex; flex-wrap: wrap; gap: 4px 16px; color: var(--text-secondary); margin: 4px 0 8px; }
   .legend .key { display: inline-flex; align-items: center; gap: 6px; }
   .legend svg { display: block; }
+  .legend .unit { margin-left: auto; }
+  .legend .total { color: var(--text-primary); font-weight: 600; }
   .plot { position: relative; width: 100%; }
   .plot svg { display: block; width: 100%; overflow: visible; }
   .plot text { fill: var(--text-muted); font-size: 11px; }
@@ -259,10 +266,9 @@
   /* Fixed column widths, as shares of the table; narrow screens scroll sideways. */
   table.data.themes { table-layout: fixed; min-width: 900px; }
   table.data.themes th:nth-child(1) { width: 20%; }
-  table.data.themes th:nth-child(2) { width: 8%; }
+  table.data.themes th:nth-child(2) { width: 10%; }
   table.data.themes th:nth-child(3), table.data.themes th:nth-child(4) { width: 9%; }
-  table.data.themes th:nth-child(5) { width: 7%; }
-  table.data.themes th:nth-child(6) { width: 8%; }
+  table.data.themes th:nth-child(5) { width: 13%; }
   table.data.themes td:first-child, table.data.themes td:first-child .link-button { white-space: nowrap; }
   table.data.themes td.nowrap { white-space: nowrap; }
   table.data.themes td.people { color: var(--text-secondary); }
@@ -280,9 +286,6 @@
   .groups li { display: flex; justify-content: space-between; gap: 8px; padding: 3px 0; border-bottom: 1px solid var(--grid); }
   .groups .count { color: var(--text-secondary); font-variant-numeric: tabular-nums; }
   .groups .empty { margin: 0; padding: 3px 0; }
-  .doc-list { list-style: none; padding: 0; margin: 8px 0; max-height: 480px; overflow-y: auto; }
-  .doc-list li { padding: 4px 0; border-bottom: 1px solid var(--grid); display: flex; flex-wrap: wrap; gap: 2px 10px; }
-  .doc-list a { color: var(--text-primary); }
   table.data { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
   table.data th, table.data td { text-align: right; padding: 4px 8px; border-bottom: 1px solid var(--grid); }
   table.data th:first-child, table.data td:first-child { text-align: left; }
@@ -297,7 +300,14 @@
   .status-key .status { margin-left: 2px; margin-right: 5px; }
   .status-key .status:not(:first-child) { margin-left: 14px; }
   table.data.activity th, table.data.activity td { text-align: left; }
+  /* Fixed widths, so the columns stay put when a sort changes which rows are shown. */
+  table.data.activity { table-layout: fixed; }
+  table.data.activity th:nth-child(1) { width: 130px; }
+  table.data.activity th:nth-child(2) { width: 170px; }
+  table.data.activity.with-person th:nth-child(3) { width: 200px; }
+  table.data.activity.with-person td:nth-child(3) { overflow: hidden; text-overflow: ellipsis; }
   table.data.activity td:nth-child(-n+2) { white-space: nowrap; color: var(--text-secondary); padding-right: 20px; }
+  table.data.activity.with-person td:nth-child(3) { white-space: nowrap; color: var(--text-secondary); padding-right: 20px; }
   table.data.activity td a { color: var(--text-primary); }
   .legend .key .status { margin-right: 0; }
   table.data.activity th:first-child, table.data.activity td:first-child { padding-left: 0; }

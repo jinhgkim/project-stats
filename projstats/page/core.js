@@ -175,6 +175,7 @@ const PS = (() => {
       howtoBody,
       controls: el("div", {class: "controls"}),
       legend: el("div", {class: "legend"}),
+      tableNote: el("div", {class: "legend", hidden: true}),
       plot: el("div", {class: "plot"}),
       table: el("div", {class: "table-wrap", hidden: true}),
       details: el("div", {class: "details", id: `details-${view.id}`, hidden: true}),
@@ -186,6 +187,7 @@ const PS = (() => {
       figure.table.hidden = !figure.showTable;
       figure.plot.hidden = figure.showTable;
       figure.legend.hidden = figure.showTable;
+      figure.tableNote.hidden = !figure.showTable || !figure.tableNote.hasChildNodes();
     };
     if (view.bare) {
       figure.root.append(figure.plot);
@@ -193,7 +195,8 @@ const PS = (() => {
     }
     figure.root.append(
       el("div", {class: "head"}, el("h3", {}, view.title), view.noTable ? null : tableButton),
-      figure.subtitle, figure.howto, figure.controls, figure.legend, figure.plot, figure.table, figure.details,
+      figure.subtitle, figure.howto, figure.controls, figure.legend, figure.tableNote, figure.plot, figure.table,
+      figure.details,
     );
     return figure;
   }
@@ -223,7 +226,10 @@ const PS = (() => {
   }
 
   // columns: [{name, value(row)}]; a "Table" toggle shows it instead of the plot.
-  function fillTable(figure, columns, rows) {
+  // unit: shown at the right above the table, in place of units in the cells.
+  function fillTable(figure, columns, rows, unit) {
+    figure.tableNote.replaceChildren(...(unit ? [el("span", {class: "unit"}, unit)] : []));
+    figure.tableNote.hidden = !figure.showTable || !unit;
     const head = el("tr", {}, columns.map(c => el("th", {scope: "col"}, c.name)));
     const body = rows.map(r => el("tr", {}, columns.map(c => {
       const v = c.value(r);
