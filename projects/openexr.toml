@@ -24,3 +24,14 @@ regular_share = 0.90
 # Final release tags: v1.7.1 through v3.5.3. Betas, RCs, and older OPENEXR_1_* tags
 # don't match. Each major.minor's earliest match is its release.
 tag_pattern = '^v(\d+)\.(\d+)\.(\d+)$'
+
+[themes]
+enabled = true
+about = "OpenEXR: the specification and reference implementation of the EXR image file format used in motion picture production, with a C++ library, a C core library, command-line tools, and Python bindings."
+areas = "compression codecs (each codec is its own area: RLE, ZIP, PIZ, PXR24, B44, DWA (DWAA and DWAB), ZSTD, HTJ2K), deep images, multipart and multiview files, tiled and mipmapped images, command-line tools, Python bindings, security and hardening (CVE fixes, fuzzing, malformed input, SECURITY.md), build system, continuous integration, performance, API changes and deprecations, documentation and website"
+project_names = ["OpenEXR", "EXR"]
+max_per_doc = 3
+doc_chars = 3000
+batch_docs = 8
+batch_chars = 8000
+registry_limit = 300

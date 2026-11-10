@@ -26,4 +26,12 @@ regular_share = 0.90
 tag_pattern = '^v(\d+)\.(\d+)\.(\d+)$'
 
 [themes]
-enabled = false
+enabled = true
+about = "MaterialX: an open standard and C++/Python/JavaScript library for describing materials and look-development content in computer graphics, exchanged across applications and renderers."
+areas = "node definitions and node libraries, shader generation (GLSL, MDL, MSL, OSL, Slang), Rendering, Viewer, Graph Editor, Python bindings, JavaScript bindings, document and file format (XML, specification), color management, build system, continuous integration, documentation"
+project_names = ["MaterialX", "MTLX"]
+max_per_doc = 3
+doc_chars = 3000
+batch_docs = 8
+batch_chars = 8000
+registry_limit = 300
