@@ -70,6 +70,8 @@ python3 -m projstats export projects/oiio.toml   # data/<owner>__<repo>.json
 python3 -m projstats page   projects/oiio.toml --open
 ```
 
+To add another project, see [ADD_PROJECT.md](ADD_PROJECT.md).
+
 ## Read-only by design
 
 projstats only reads from GitHub. `GhClient` (`projstats/github.py`) refuses
