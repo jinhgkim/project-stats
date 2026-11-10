@@ -24,8 +24,9 @@ github = ""   # REQUIRED: "owner/name"
 
 [releases]
 # Regex that fully matches final release tags and captures major, minor, and
-# patch (a fourth number is optional). Betas and RCs should not match. List the
-# tags: gh api repos/<owner>/<name>/tags --paginate --jq '.[].name'
+# patch (an optional patch group counts as 0; a fourth number is optional).
+# Betas and RCs should not match. List the tags:
+# gh api repos/<owner>/<name>/tags --paginate --jq '.[].name'
 # tag_pattern = '^v?(\d+)\.(\d+)\.(\d+)$'
 
 [themes]
