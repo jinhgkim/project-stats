@@ -310,18 +310,25 @@ def cmd_export(args) -> int:
     return 0
 
 
-def cmd_page(args) -> int:
-    cfg = config.load(args.config)
+def _write_page(config_path, cfg, out=None) -> Path:
     conn = storage.connect(cfg.db_path)
     data = export.build(conn, cfg)
     title = f"{cfg.repo.github.split('/')[-1]} Project Analytics"
-    out = Path(args.out or Path(cfg.data_dir) / f"{cfg.slug}.html")
-    data["siblings"] = page.siblings(args.config, cfg, out)
-    out = page.write(data, title, out)
+    out = Path(out or Path(cfg.data_dir) / f"{cfg.slug}.html")
+    data["siblings"] = page.siblings(config_path, cfg, out)
+    return page.write(data, title, out)
+
+
+def cmd_page(args) -> int:
+    cfg = config.load(args.config)
+    out = _write_page(args.config, cfg, args.out)
     size = out.stat().st_size / 1024
     print(
         f"page: {out} ({size:.0f} KB); add #check to the address to compare with Python"
     )
+    if not args.out:
+        for path, other in page.other_pages(args.config, cfg):
+            print(f"rebuilt: {_write_page(path, other)}")
     if args.open:
         subprocess.run(["open", str(out)], check=False)
     return 0
