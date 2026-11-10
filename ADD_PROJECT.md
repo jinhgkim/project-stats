@@ -12,8 +12,9 @@ under Dependencies in the README, with `gh` logged in.
    `gh api repos/<owner>/<name>/tags --paginate --jq '.[].name'`.
    - It must fully match final release tags and capture major, minor, and
      patch. Betas and RCs should not match.
-   - The patch number is required, so two-number tags like `v0.15` are
-     skipped (`projstats/releases.py:43`).
+   - For two-number tags like `v0.15`, make the patch group optional:
+     `(?:\.(\d+))?`. A missing patch counts as 0 (example:
+     `projects/openfx.toml`).
 
 3. **Fetch.** `python3 -m projstats fetch projects/<name>.toml`
    - A first fetch of OpenImageIO (6,872 commits, 4,508 PRs, 1,083 issues)
@@ -24,6 +25,9 @@ under Dependencies in the README, with `gh` logged in.
    - Look at the merged identities and the dropped bots.
    - Add extra bots under `[people] bots`. Add `same_person` only when the
      evidence is clear (example: `projects/oiio.toml`).
+   - Commits with no author email (common in ancient CVS imports) show up as
+     `<name>@no-email.invalid`, one person per name (example:
+     `projects/openfx.toml`).
 
 5. **Build the page.** `python3 -m projstats export projects/<name>.toml`,
    then `python3 -m projstats page projects/<name>.toml --open`. Add `#check`
