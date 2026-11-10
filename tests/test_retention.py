@@ -195,6 +195,17 @@ class ActivityConfigTest(unittest.TestCase):
             with self.subTest(bad=bad), self.assertRaises(ValueError):
                 config.load(self.write(f"[people]\nleave_out_option = {bad}\n"))
 
+    def test_same_person_takes_emails_as_commits_have_them(self):
+        entry = '{ login = "bruno", emails = ["bruno@x.example", "Bruno"] }'
+        cfg = config.load(self.write(f"[people]\nsame_person = [{entry}]\n"))
+        self.assertEqual(
+            cfg.people.manual_links(),
+            [("bruno@x.example", "bruno"), ("Bruno", "bruno")],
+        )
+        for bad in ('{ login = "bruno", emails = [""] }', '{ emails = ["a@b"] }'):
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                config.load(self.write(f"[people]\nsame_person = [{bad}]\n"))
+
     def test_segment_shares_must_be_ordered(self):
         bad = "[retention]\ncore_share = 0.9\nregular_share = 0.8\n"
         with self.assertRaises(ValueError):

@@ -118,7 +118,10 @@ def mailmap_blob(repo: Path) -> str:
 
 
 def _resolve(mapping: dict[Ident, Ident], ident: Ident) -> Ident:
-    return mapping.get(ident, ident)
+    """The mailmapped identity. People are told apart by email, so an author
+    with none (common in old CVS imports) gets a stand-in made from the name."""
+    name, email = mapping.get(ident, ident)
+    return name, email or f"{name}@no-email.invalid"
 
 
 def import_commits(conn: sqlite3.Connection, repo: Path) -> ImportStats:

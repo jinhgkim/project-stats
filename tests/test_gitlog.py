@@ -115,6 +115,15 @@ class GitImportTest(unittest.TestCase):
             (row["raw_name"], row["raw_email"]), ("Alice", "alice@old.example")
         )
 
+    def test_missing_email_gets_a_stand_in_per_name(self):
+        shas = [self.work.commit(n, author=(n, "")) for n in ("cvsone", "cvstwo")]
+        self.sync()
+        self.assertEqual(
+            [self.commit_row(sha)["author_email"] for sha in shas],
+            ["cvsone@no-email.invalid", "cvstwo@no-email.invalid"],
+        )
+        self.assertEqual(self.commit_row(shas[0])["raw_email"], "")
+
     def test_body_kept_intact(self):
         gitlog.import_commits(self.conn, self.bare)
         row = self.commit_row(self.c1)

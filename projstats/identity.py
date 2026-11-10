@@ -39,7 +39,7 @@ class Identity:
 @dataclass
 class Person:
     key: str  # the email with the most activity
-    name: str  # most common name
+    name: str  # most common full name, else most common name
     emails: set[str] = field(default_factory=set)
     logins: set[str] = field(default_factory=set)
     reasons: list[str] = field(default_factory=list)  # why emails were joined
@@ -203,11 +203,11 @@ def group_people(
             for (kind, value), touched in touching.items()
             if len(touched & emails) >= 2
         ) + sorted(
-            f"listed in config: login '{login}'" for e, login in manual if e in emails
+            {f"listed in config: login '{login}'" for e, login in manual if e in emails}
         )
         person = Person(
             key=min(by_email, key=lambda e: (-by_email[e], e)),
-            name=min(by_name, key=lambda n: (-by_name[n], n)),
+            name=min(by_name, key=lambda n: (name_key(n) is None, -by_name[n], n)),
             emails=emails,
             logins=logins,
             reasons=reasons,
