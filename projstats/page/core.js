@@ -74,7 +74,7 @@ const PS = (() => {
   function registerTab(tab) { tabRegistry.push(tab); }
   registerTab({id: "overview", label: "Overview", order: 10});
   registerTab({id: "people", label: "People", order: 20});
-  registerTab({id: "themes", label: "Themes", order: 30});
+  registerTab({id: "themes", label: "Themes (experimental)", order: 30});
   let TABS = [];  // the tabs shown, set at start
   let firstTab = null;
   const tabOf = view => view.tab || firstTab;
