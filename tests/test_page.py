@@ -1,10 +1,13 @@
+import argparse
+import contextlib
+import io
 import json
 import re
 import tempfile
 import unittest
 from pathlib import Path
 
-from projstats import config, page
+from projstats import cli, config, page
 
 
 def embedded_data(text: str) -> dict:
@@ -89,6 +92,31 @@ class PageTest(unittest.TestCase):
             cfg = config.load(tmp / "a.toml")
             found = page.siblings(tmp / "a.toml", cfg, tmp / "data" / "org__a.html")
             self.assertEqual([f["name"] for f in found], ["a"])
+
+    def test_other_pages_are_the_built_pages_of_other_projects(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = self.write_projects(Path(tmp), ["a", "b", "c"])
+            (tmp / "data").mkdir()
+            (tmp / "data" / "org__a.html").write_text("")
+            (tmp / "data" / "org__b.html").write_text("")
+            cfg = config.load(tmp / "a.toml")
+            found = page.other_pages(tmp / "a.toml", cfg)
+            self.assertEqual([(p.name, c.slug) for p, c in found], [("b.toml", "org__b")])
+
+    def test_page_command_rebuilds_the_other_pages_switchers(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = self.write_projects(Path(tmp), ["a", "b"])
+            args = lambda name: argparse.Namespace(
+                config=str(tmp / f"{name}.toml"), out=None, open=False
+            )
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(cli.cmd_page(args("b")), 0)
+                b = tmp / "data" / "org__b.html"
+                self.assertEqual(len(embedded_data(b.read_text())["siblings"]), 1)
+                self.assertEqual(cli.cmd_page(args("a")), 0)
+            self.assertEqual(
+                [s["name"] for s in embedded_data(b.read_text())["siblings"]], ["a", "b"]
+            )
 
 
 if __name__ == "__main__":

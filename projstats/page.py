@@ -27,17 +27,27 @@ def js_files() -> list[Path]:
     ]
 
 
+def _neighbours(config_path: str | Path):
+    """Every config next to this one that loads, as (path, config). A config
+    that doesn't load is skipped."""
+    for path in sorted(Path(config_path).parent.glob("*.toml")):
+        try:
+            yield path, config.load(path)
+        except (ValueError, OSError):
+            continue
+
+
+def _page_path(cfg: config.Config) -> Path:
+    return Path(cfg.data_dir) / f"{cfg.slug}.html"
+
+
 def siblings(config_path: str | Path, cfg: config.Config, out: Path) -> list[dict]:
     """The projects the page can switch to: every config next to this one whose
     page already exists, plus this project. Links are relative to `out`, so the
-    pages must stay together. A config that doesn't load is skipped."""
+    pages must stay together."""
     found = []
-    for path in sorted(Path(config_path).parent.glob("*.toml")):
-        try:
-            other = config.load(path)
-        except (ValueError, OSError):
-            continue
-        target = Path(other.data_dir) / f"{other.slug}.html"
+    for _, other in _neighbours(config_path):
+        target = _page_path(other)
         current = other.slug == cfg.slug
         if not current and not target.exists():
             continue
@@ -45,6 +55,17 @@ def siblings(config_path: str | Path, cfg: config.Config, out: Path) -> list[dic
         name = other.repo.github.split("/")[-1]
         found.append({"name": name, "href": href, "current": current})
     return found
+
+
+def other_pages(config_path: str | Path, cfg: config.Config):
+    """The other projects whose page already exists, as (path, config). Their
+    switchers are fixed when they are built, so a new page leaves them stale
+    until they are built again."""
+    return [
+        (path, other)
+        for path, other in _neighbours(config_path)
+        if other.slug != cfg.slug and _page_path(other).exists()
+    ]
 
 
 def _script(path: Path) -> str:
