@@ -1,0 +1,81 @@
+name: Deploy
+
+on:
+  # Paused until the first manual run has worked.
+  # schedule:
+  #   - cron: "0 6 * * SAT"
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch or tag of the code to build
+        default: release
+
+permissions:
+  contents: read
+
+# Two runs at once would push over each other's databases.
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  build:
+    # ubuntu-latest is moving to a newer image; this one has gh installed.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      # main moves ahead of what is live, so the site is built from release.
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || 'release' }}
+          persist-credentials: false
+      - uses: actions/checkout@v7
+        with:
+          repository: jinhgkim/project-stats-data
+          token: ${{ secrets.DATA_TOKEN }}
+          path: data
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+      - name: Fetch new history
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for config in $(python -c "import tomllib; print(*tomllib.load(open('deploy.toml', 'rb'))['projects'])"); do
+            python -m projstats fetch "$config"
+          done
+      # Pushes the updated databases to the private data repo.
+      - name: Save the databases
+        if: github.ref == 'refs/heads/main'
+        working-directory: data
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "databases unchanged"
+          else
+            git commit -m "data: update databases"
+            git push
+          fi
+      - name: Build the site
+        env:
+          PROJSTATS_GA_ID: ${{ vars.PROJSTATS_GA_ID }}
+        run: python -m projstats deploy
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5
