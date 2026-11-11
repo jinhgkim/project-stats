@@ -4,21 +4,57 @@
 
 ### How do we know what's new on a rerun?
 
-Each source saves a bookmark (last git HEAD, last fetch time, last
-main-branch sha) in `fetch_state`, and the next run stops there. `fetch --full`
-ignores the bookmarks.
+Each source saves a bookmark in `fetch_state`, and the next run starts from it:
+
+- **Commits:** the last imported HEAD. The next run reads only the commits
+  after it.
+- **PRs and issues:** when the last run started. GitHub lists them newest
+  updated first, and the fetch stops at the first one last updated more than a
+  day before that time. A new comment moves an item's `updatedAt`, so an old PR
+  with a new comment is read again and saved over its old row. Nothing is
+  compared with the database.
+- **Commit logins:** the newest main-branch sha handled.
+
+`fetch --full` ignores the bookmarks.
 
 See `import_commits` in `projstats/gitlog.py`, and `fetch_items` and
 `fetch_commit_logins` in `projstats/github.py`.
 
-### Is the database huge?
+### What's in the git clone and the database, and how big are they?
 
-No. For OpenImageIO it's about 19 MB, since it stores text and timestamps,
-not code. The git clone in `data/repos` is bigger (about 470 MB), even though
-it's fetched without file contents.
+The sizes here are for OpenImageIO, the largest project we track (6,872
+commits, 4,508 PRs, 1,083 issues). The others are smaller: OpenEXR's database
+is about 12 MB and OpenFX's about 1 MB.
 
-See `projstats/storage.py` for the tables and `sync_clone` in
-`projstats/gitlog.py` for the clone.
+The clone in `data/repos` is a read-only copy of the project's git history:
+commits, folder listings, and tags, but no file contents (git downloads
+`.mailmap` when it's needed). A fresh OpenImageIO one is about 13 MB, takes
+seconds to make, and uses no GitHub API budget.
+
+The database is filled by two separate fetches plus the local model: commits
+are read out of the clone with `git log`, PRs, issues, reviews, and comments
+come from the GitHub API, and themes come from the model. For OpenImageIO it's
+about 19 MB, of which about 7.5 MB is the text of PRs, issues, and commit
+messages. Comments and reviews keep only who, when, and what kind, with no
+text, and code and diffs are not stored. PRs, issues, and reviews exist only on
+GitHub and in the database.
+
+See `sync_clone` in `projstats/gitlog.py`, the tables in `projstats/storage.py`,
+and `COMMENT_FIELDS` and `REVIEW_FIELDS` in `projstats/github.py`.
+
+### How much of the GitHub API budget does a fetch use?
+
+GitHub's GraphQL API charges points: a page of 50 PRs costs 2, a page of 100
+issues costs 2, and a page of 100 commit logins costs 1. A first fetch of
+OpenFX (743 commits, 195 PRs, 93 issues) cost 19 points over 14 queries; a
+rerun that read 4 PRs and 2 issues cost 5. The git clone costs none.
+
+The hourly limit, per GitHub's docs, is 5,000 points for a personal token and
+1,000 per repository for the `GITHUB_TOKEN` in GitHub Actions, or 15,000 when
+the requests are for resources that belong to an enterprise account. `fetch`
+stops with an error when fewer than 50 points are left.
+
+See `RATE_FLOOR` and `GhClient` in `projstats/github.py`.
 
 ## Speed and resources
 
