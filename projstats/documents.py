@@ -112,9 +112,7 @@ def release_periods(releases) -> list[Period]:
         raise ValueError("no releases found; check [releases] tag_pattern")
     periods = [Period(rs[0].version, None, rs[0].released_at)]
     for before, release in zip(rs, rs[1:], strict=False):
-        periods.append(
-            Period(release.version, before.released_at, release.released_at)
-        )
+        periods.append(Period(release.version, before.released_at, release.released_at))
     upcoming = next_version(rs[-1].version)
     label = f"{upcoming} dev" if upcoming else f"after {rs[-1].version}"
     periods.append(Period(label, rs[-1].released_at, None, partial=True))

@@ -171,9 +171,7 @@ class ExportTest(unittest.TestCase):
         # Ann has 4 of 6 activities and bo 2: 80% needs both, so both are core.
         self.assertEqual(ref["segments"][0]["segments"], {"core": [2, 2]})
         # The release splits 2020: pr#5 and issue#6 fall in the 1.0 cycle.
-        self.assertEqual(
-            [p["label"] for p in ref["theme_trends"]["periods"]], ["1.0"]
-        )
+        self.assertEqual([p["label"] for p in ref["theme_trends"]["periods"]], ["1.0"])
 
     def test_merged_prs_and_their_reference_numbers(self):
         self.assertEqual(self.data["merged"], {"doc": [], "day": []})

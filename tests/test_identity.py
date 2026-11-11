@@ -229,7 +229,10 @@ class ManualLinksTest(unittest.TestCase):
         links = [("typo@x.example", "rob-mat"), ("rob@x.example", "nobody")]
         self.assertEqual(
             unmatched_links(self.conn, links),
-            ["nobody: no GitHub activity", "typo@x.example: no commits with this email"],
+            [
+                "nobody: no GitHub activity",
+                "typo@x.example: no commits with this email",
+            ],
         )
 
 
