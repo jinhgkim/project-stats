@@ -1,5 +1,5 @@
-// Setting: the period the contributors chart and the timeline group by. It
-// filters no rows, but two tabs use it, so it sits in the top bar.
+// Setting: the period the contributors chart, the timeline, and the theme views
+// group by. It filters no rows, but three tabs use it, so it sits in the top bar.
 
 PS.registerFilter({
   id: "period",

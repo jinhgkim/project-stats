@@ -1,12 +1,10 @@
-// View: each theme's share of activity per release cycle, as a heatmap. Only
+// View: each theme's share of activity per period, as a heatmap. Only
 // periods that are mostly tagged get columns. Hovering a theme shows its latest
 // share and how it compares with earlier ones. A cell opens, in the pane below,
 // the activity its share is made of, listed like the People tab's pane.
 
-// The theme views' period: release cycles, or years when a project has no
-// releases. Theme counts per month or quarter are too small to compare, so
-// these views don't follow Group by.
-PS.themePeriod = () => (PS.data.releases.day.length ? "release" : "year");
+// The theme views' period is the Group by choice.
+PS.themePeriod = state => state.period;
 
 PS.registerView({
   id: "themes-over-time",
