@@ -24,7 +24,9 @@ class PeopleConfig:
     same_person: list[dict] = field(default_factory=list)
 
     def manual_links(self) -> list[tuple[str, str]]:
-        return [(e, entry["login"]) for entry in self.same_person for e in entry["emails"]]
+        return [
+            (e, entry["login"]) for entry in self.same_person for e in entry["emails"]
+        ]
 
 
 @dataclass
@@ -131,9 +133,12 @@ def load(path: str | Path) -> Config:
         raise ValueError(f'[repo] github must be "owner/name", got {repo.github!r}')
     opt = people.leave_out_option
     if not isinstance(opt, dict) or not all(
-        isinstance(k, str) and k.strip() and isinstance(v, str) and v for k, v in opt.items()
+        isinstance(k, str) and k.strip() and isinstance(v, str) and v
+        for k, v in opt.items()
     ):
-        raise ValueError('[people] leave_out_option must map labels to GitHub logins, e.g. { maintainer = "login" }')
+        raise ValueError(
+            '[people] leave_out_option must map labels to GitHub logins, e.g. { maintainer = "login" }'
+        )
     for entry in people.same_person:
         emails = entry.get("emails") if isinstance(entry, dict) else None
         if not (
@@ -145,7 +150,7 @@ def load(path: str | Path) -> Config:
             and all(isinstance(e, str) and e for e in emails)
         ):
             raise ValueError(
-                '[people] same_person entries need a login and emails, e.g. '
+                "[people] same_person entries need a login and emails, e.g. "
                 '{ login = "octo", emails = ["octo@example.com"] }'
             )
     ex = activity.exclude_items

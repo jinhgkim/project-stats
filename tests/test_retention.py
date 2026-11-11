@@ -188,10 +188,18 @@ class ActivityConfigTest(unittest.TestCase):
         self.assertEqual(config.load(self.write("")).activity.exclude_items, [])
 
     def test_leave_out_option_maps_labels_to_logins(self):
-        cfg = config.load(self.write('[people]\nleave_out_option = { maintainer = "lgritz" }\n'))
+        cfg = config.load(
+            self.write('[people]\nleave_out_option = { maintainer = "lgritz" }\n')
+        )
         self.assertEqual(cfg.people.leave_out_option, {"maintainer": "lgritz"})
         self.assertEqual(config.load(self.write("")).people.leave_out_option, {})
-        for bad in ('["lgritz"]', '"lgritz"', '{ maintainer = 1 }', '{ maintainer = "" }', '{ " " = "x" }'):
+        for bad in (
+            '["lgritz"]',
+            '"lgritz"',
+            "{ maintainer = 1 }",
+            '{ maintainer = "" }',
+            '{ " " = "x" }',
+        ):
             with self.subTest(bad=bad), self.assertRaises(ValueError):
                 config.load(self.write(f"[people]\nleave_out_option = {bad}\n"))
 

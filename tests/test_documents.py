@@ -136,11 +136,17 @@ class PeriodsTest(unittest.TestCase):
         )
 
     def test_cycle_in_progress_is_named_for_the_next_version(self):
-        self.assertEqual(release_periods([Release("3.2", "v3.2.0", ts(2025))])[-1].label, "3.3 dev")
-        self.assertEqual(release_periods([Release("9.9", "v9.9.0", ts(2025))])[-1].label, "9.10 dev")
+        self.assertEqual(
+            release_periods([Release("3.2", "v3.2.0", ts(2025))])[-1].label, "3.3 dev"
+        )
+        self.assertEqual(
+            release_periods([Release("9.9", "v9.9.0", ts(2025))])[-1].label, "9.10 dev"
+        )
 
     def test_cycle_in_progress_without_a_numeric_version(self):
-        self.assertEqual(release_periods([Release("beta", "beta", ts(2025))])[-1].label, "after beta")
+        self.assertEqual(
+            release_periods([Release("beta", "beta", ts(2025))])[-1].label, "after beta"
+        )
 
     def test_no_releases(self):
         with self.assertRaisesRegex(ValueError, "tag_pattern"):

@@ -88,7 +88,7 @@ class PageTest(unittest.TestCase):
     def test_siblings_skips_configs_that_do_not_load(self):
         with tempfile.TemporaryDirectory() as tmp:
             tmp = self.write_projects(Path(tmp), ["a"])
-            (tmp / "broken.toml").write_text("[repo]\ngithub = \"nope\"\n")
+            (tmp / "broken.toml").write_text('[repo]\ngithub = "nope"\n')
             cfg = config.load(tmp / "a.toml")
             found = page.siblings(tmp / "a.toml", cfg, tmp / "data" / "org__a.html")
             self.assertEqual([f["name"] for f in found], ["a"])
@@ -101,7 +101,9 @@ class PageTest(unittest.TestCase):
             (tmp / "data" / "org__b.html").write_text("")
             cfg = config.load(tmp / "a.toml")
             found = page.other_pages(tmp / "a.toml", cfg)
-            self.assertEqual([(p.name, c.slug) for p, c in found], [("b.toml", "org__b")])
+            self.assertEqual(
+                [(p.name, c.slug) for p, c in found], [("b.toml", "org__b")]
+            )
 
     def test_page_command_rebuilds_the_other_pages_switchers(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -115,7 +117,8 @@ class PageTest(unittest.TestCase):
                 self.assertEqual(len(embedded_data(b.read_text())["siblings"]), 1)
                 self.assertEqual(cli.cmd_page(args("a")), 0)
             self.assertEqual(
-                [s["name"] for s in embedded_data(b.read_text())["siblings"]], ["a", "b"]
+                [s["name"] for s in embedded_data(b.read_text())["siblings"]],
+                ["a", "b"],
             )
 
 
