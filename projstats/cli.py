@@ -2,6 +2,7 @@
 
 import argparse
 import dataclasses
+import os
 import subprocess
 import sys
 import time
@@ -10,6 +11,7 @@ from pathlib import Path
 
 from projstats import (
     config,
+    deploy,
     documents,
     export,
     github,
@@ -313,10 +315,9 @@ def cmd_export(args) -> int:
 def _write_page(config_path, cfg, out=None) -> Path:
     conn = storage.connect(cfg.db_path)
     data = export.build(conn, cfg)
-    title = f"{cfg.repo.github.split('/')[-1]} Project Analytics"
     out = Path(out or Path(cfg.data_dir) / f"{cfg.slug}.html")
     data["siblings"] = page.siblings(config_path, cfg, out)
-    return page.write(data, title, out)
+    return page.write(data, page.title(cfg), out)
 
 
 def cmd_page(args) -> int:
@@ -331,6 +332,18 @@ def cmd_page(args) -> int:
             print(f"rebuilt: {_write_page(path, other)}")
     if args.open:
         subprocess.run(["open", str(out)], check=False)
+    return 0
+
+
+def cmd_deploy(args) -> int:
+    ga_id = os.environ.get("PROJSTATS_GA_ID")
+    for path in deploy.build(deploy.load_list(args.list), args.out, ga_id):
+        print(f"deploy: {path}")
+    print(
+        "google tag: added"
+        if ga_id
+        else "google tag: not added (PROJSTATS_GA_ID is not set)"
+    )
     return 0
 
 
@@ -402,6 +415,17 @@ def main(argv=None) -> int:
     p.add_argument("--out", help="output file (default: data/<owner>__<repo>.html)")
     p.add_argument("--open", action="store_true", help="open it in your browser")
     p.set_defaults(func=cmd_page)
+
+    p = sub.add_parser(
+        "deploy", help="build every listed project's page plus index.html"
+    )
+    p.add_argument("--list", default="deploy.toml", help="projects to deploy")
+    p.add_argument(
+        "--out",
+        default="site",
+        help="output folder; other .html files in it are removed",
+    )
+    p.set_defaults(func=cmd_deploy)
 
     args = parser.parse_args(argv)
     try:

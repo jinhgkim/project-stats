@@ -1,0 +1,11 @@
+# Projects published by `python3 -m projstats deploy`, as config files relative
+# to this file. The page switcher shows them in this order.
+projects = [
+  "projects/materialx.toml",
+  "projects/oiio.toml",
+  "projects/openexr.toml",
+  "projects/openfx.toml",
+  "projects/osl.toml",
+]
+# The project whose page is also the site's index.html.
+index = "projects/oiio.toml"
