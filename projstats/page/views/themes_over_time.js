@@ -28,7 +28,10 @@ PS.registerView({
     const r = PS.metrics.themeTrends(rows, data, scheme, {skipInProgress: kind === "release"});
     const selected = PS.selectedThemes(state);
     const cols = r.periods.filter(p => p.covered && p.activity > 0);
-    const untagged = r.periods.filter(p => !p.covered && p.activity > 0).length;
+    const untagged = r.periods.filter(p => !p.covered && p.activity > 0).map(p => p.label);
+    figure.controls.replaceChildren(...(untagged.length ? [PS.el("span", {class: "coverage"},
+      `Left out because they aren't tagged yet: ${untagged.slice(0, 5).join(", ")}` +
+      `${untagged.length > 5 ? ` and ${untagged.length - 5} more` : ""}.`)] : []));
 
     const name = t => data.themes.name[t];
     const shareOf = (p, t) => {
@@ -51,8 +54,6 @@ PS.registerView({
       "A PR's reviews, comments, and linked commits count toward its themes; a document with two themes counts for both.",
       `Documents in the tooltip: the PRs opened, issues opened, and commits not tied to a PR in that ${scheme.name} that are tagged with the theme.`,
       compared,
-      untagged ? `${untagged} earlier ${scheme.name}${untagged === 1 ? " isn't" : "s aren't"} tagged yet, so ` +
-        `${untagged === 1 ? "it's" : "they're"} left out.` : null,
     ].filter(Boolean));
 
     const BINS = [0.01, 0.03, 0.06, 0.10, 0.15];
