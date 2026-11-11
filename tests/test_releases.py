@@ -36,6 +36,23 @@ class FindReleasesTest(unittest.TestCase):
         tags = [("v2.0.0", 900), ("v1.9.0", 950)]
         self.assertEqual([r.version for r in find_releases(tags, OIIO)], ["2.0", "1.9"])
 
+    def test_optional_patch_counts_as_zero(self):
+        pattern = r"^OFX_Release_(\d+)[._](\d+)(?:[._](\d+))?(?:_TAG)?$"
+        tags = [
+            ("OFX_Release_1_1_1_TAG", 200),
+            ("OFX_Release_1_1_TAG", 100),
+            ("OFX_Release_1_0_RC6_TAG", 50),  # not final
+            ("OFX_Release_1.5s", 400),  # not a release tag
+            ("OFX_Release_1.5", 300),
+        ]
+        self.assertEqual(
+            find_releases(tags, pattern),
+            [
+                Release("1.1", "OFX_Release_1_1_TAG", 100),
+                Release("1.5", "OFX_Release_1.5", 300),
+            ],
+        )
+
 
 class ImportReleasesTest(unittest.TestCase):
     def setUp(self):

@@ -89,6 +89,16 @@ class GroupPeopleTest(unittest.TestCase):
         self.assertEqual(p.key, "zach@work.example")
         self.assertEqual(p.activity, 79)
 
+    def test_display_name_prefers_a_full_name(self):
+        result = group_people(
+            ids(
+                ("philfoundry", "pf@no-email.invalid", 56),
+                ("Phil Barrett", "philb@work.example", 13),
+            ),
+            manual_links=[("pf@no-email.invalid", "pb"), ("philb@work.example", "pb")],
+        )
+        self.assertEqual(result.people[0].name, "Phil Barrett")
+
     def test_bots_dropped(self):
         result = group_people(
             ids(

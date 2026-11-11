@@ -26,7 +26,8 @@ def find_releases(tags: Iterable[tuple[str, int]], pattern: str) -> list[Release
     """Each major.minor version's earliest final tag, oldest release first.
 
     `pattern` must fully match final release tags (not betas or RCs) and
-    capture major, minor, patch, and optionally a fourth number.
+    capture major, minor, patch, and optionally a fourth number. A patch
+    group that doesn't take part in the match counts as 0.
     """
     regex = re.compile(pattern)
     best: dict[tuple[int, int], tuple[tuple[int, int, int], str]] = {}
@@ -34,7 +35,7 @@ def find_releases(tags: Iterable[tuple[str, int]], pattern: str) -> list[Release
         m = regex.fullmatch(name)
         if not m:
             continue
-        major, minor, patch = (int(g) for g in m.groups()[:3])
+        major, minor, patch = (int(g or 0) for g in m.groups()[:3])
         extra = m.groups()[3] if len(m.groups()) > 3 else None
         rank = (patch, int(extra or 0), ts)
         key = (major, minor)

@@ -142,7 +142,7 @@ def load(path: str | Path) -> Config:
             and entry["login"]
             and isinstance(emails, list)
             and emails
-            and all(isinstance(e, str) and "@" in e for e in emails)
+            and all(isinstance(e, str) and e for e in emails)
         ):
             raise ValueError(
                 '[people] same_person entries need a login and emails, e.g. '
