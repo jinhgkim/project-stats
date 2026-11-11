@@ -41,6 +41,26 @@ def _page_path(cfg: config.Config) -> Path:
     return Path(cfg.data_dir) / f"{cfg.slug}.html"
 
 
+def _name(cfg: config.Config) -> str:
+    return cfg.repo.github.split("/")[-1]
+
+
+def title(cfg: config.Config) -> str:
+    return f"{_name(cfg)} Project Analytics"
+
+
+def switcher(configs: list[config.Config], current: config.Config) -> list[dict]:
+    """Like siblings(), for pages that all sit in one folder: exactly `configs`."""
+    return [
+        {
+            "name": _name(c),
+            "href": _page_path(c).name,
+            "current": c.slug == current.slug,
+        }
+        for c in configs
+    ]
+
+
 def siblings(config_path: str | Path, cfg: config.Config, out: Path) -> list[dict]:
     """The projects the page can switch to: every config next to this one whose
     page already exists, plus this project. Links are relative to `out`, so the
@@ -52,8 +72,7 @@ def siblings(config_path: str | Path, cfg: config.Config, out: Path) -> list[dic
         if not current and not target.exists():
             continue
         href = Path(os.path.relpath(target, out.parent)).as_posix()
-        name = other.repo.github.split("/")[-1]
-        found.append({"name": name, "href": href, "current": current})
+        found.append({"name": _name(other), "href": href, "current": current})
     return found
 
 

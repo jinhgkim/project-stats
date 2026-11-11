@@ -1,6 +1,7 @@
 # Fetched history, database, generated pages
 data/
 *.db
+site/
 
 # Python
 __pycache__/
