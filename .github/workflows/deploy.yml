@@ -1,9 +1,9 @@
 name: Deploy
 
 on:
-  # Paused until the first manual run has worked.
-  # schedule:
-  #   - cron: "0 6 * * SAT"
+  # 3am Vancouver
+  schedule:
+    - cron: "0 10 * * *"
   workflow_dispatch:
     inputs:
       ref:
