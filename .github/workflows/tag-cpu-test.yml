@@ -1,0 +1,61 @@
+name: Tag on CPU (test)
+
+on:
+  push:
+    branches: [themes-ci]
+    paths: [.github/workflows/tag-cpu-test.yml]
+  workflow_dispatch:
+    inputs:
+      config:
+        default: projects/oiio.toml
+      sample:
+        default: "24"
+
+permissions:
+  contents: read
+
+jobs:
+  sample:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      CONFIG: ${{ inputs.config || 'projects/oiio.toml' }}
+      SAMPLE: ${{ inputs.sample || '24' }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v7
+        with:
+          repository: jinhgkim/project-stats-data
+          token: ${{ secrets.DATA_TOKEN }}
+          path: data
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+      - name: Machine
+        run: |
+          lscpu | grep -E "Model name|^CPU\(s\)"
+          free -h
+      - name: Install Ollama
+        run: |
+          curl -fsSL https://ollama.com/install.sh | OLLAMA_VERSION=0.40.13 sh
+          curl -fsS localhost:11434 || (nohup ollama serve > ollama.log 2>&1 &)
+          until curl -fsS localhost:11434; do sleep 1; done
+      - name: Pull the model
+        run: |
+          model=$(python -c "from projstats import config; print(config.load('$CONFIG').ollama.model)")
+          time ollama pull "$model"
+      # The sample would otherwise reuse replies cached by earlier runs.
+      - name: Clear the reply cache
+        run: |
+          python - <<EOF
+          import sqlite3
+          from projstats import config
+          conn = sqlite3.connect(config.load("$CONFIG").db_path)
+          conn.execute("DELETE FROM llm_cache")
+          conn.commit()
+          EOF
+      - name: Tag a sample
+        run: python -m projstats tag "$CONFIG" --sample "$SAMPLE"
