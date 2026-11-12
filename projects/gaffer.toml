@@ -1,0 +1,39 @@
+[repo]
+github = "GafferHQ/gaffer"
+label = "Gaffer"   # short name shown on the page
+
+[people]
+# Extra names, emails, or logins to drop. Always dropped: logins ending in "[bot]" and
+# Claude, Cursor, Codex, and Copilot (matched by email or login, see identity.py).
+# People the page lets you leave out with a checkbox, as label = login (all included by default).
+leave_out_option = { maintainer = "johnhaddon" }
+
+[activity]
+# PR or issue numbers left out of every count, along with commits linked to those PRs.
+exclude_items = []
+
+[retention]
+return_gap_days = 365   # "returning" = back after at least this long away
+# Segments, ranked by activity: core = the top people who together do 80% of all
+# activity; regular = the next people, up to 90%; casual = everyone else with
+# more than one activity; one-time = exactly one activity.
+core_share = 0.80
+regular_share = 0.90
+
+[releases]
+# Final release tags: 0.1.0.0 through 1.7.7.0. Some 0.x tags have three numbers
+# (0.61.0), so the fourth group is optional. Alphas, betas (1.7.0.0a10, 1.4.0.0b6),
+# 0.35.5.0-arnold5, and the nightly tags don't match.
+# Each major.minor's earliest match is its release.
+tag_pattern = '^(\d+)\.(\d+)\.(\d+)(?:\.(\d+))?$'
+
+[themes]
+enabled = true
+about = "Gaffer: a node-based VFX application for look development, lighting, compositing, and automation, with Python and OSL scripting and an application framework for studio pipeline tools."
+areas = "scene generation and filtering (instancing, set and path filters), core node graph (nodes, plugs, Box, copy and paste), node graph editor (canvas, node placement, backdrops), UI framework (widgets, menus, focus, NodeEditor layout), image and compositing nodes, animation and curves, task dispatch and render farm integration (Tractor, Flamenco), renderer integrations and features shared by several renderers, such as region rendering (Arnold, Cycles, 3Delight, RenderMan, appleseed), DCC host integrations (Houdini, Maya, Nuke), OSL shading, USD, VDB, machine learning nodes, Python scripting and bindings, core engine (multithreading, hashing, caching), paths and the file browser, Cortex and IECore library, command line apps, build system, continuous integration, platform ports (Linux, Windows, macOS), performance, documentation"
+project_names = ["Gaffer", "GafferHQ"]
+max_per_doc = 3
+doc_chars = 3000
+batch_docs = 8
+batch_chars = 8000
+registry_limit = 300
