@@ -5,6 +5,7 @@ projects = [
   "projects/oiio.toml",
   "projects/openexr.toml",
   "projects/openfx.toml",
+  "projects/openusd.toml",
   "projects/osl.toml",
 ]
 # The project whose page is also the site's index.html.
