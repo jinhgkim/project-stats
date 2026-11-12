@@ -44,6 +44,22 @@ jobs:
           for config in $(python -c "import tomllib; print(*tomllib.load(open('deploy.toml', 'rb'))['projects'])"); do
             python -m projstats fetch "$config"
           done
+      # Tags only the documents the fetch added; earlier tags and the theme list
+      # come from the databases. The limit bounds a run, the rest waits a day. A
+      # tagging failure must not block the site, so the step may fail.
+      - name: Tag new documents
+        continue-on-error: true
+        run: |
+          configs=$(python -c "import tomllib; load = lambda p: tomllib.load(open(p, 'rb')); print(*[p for p in load('deploy.toml')['projects'] if load(p).get('themes', {}).get('enabled')])")
+          [ -n "$configs" ] || exit 0
+          curl -fsSL https://ollama.com/install.sh | OLLAMA_VERSION=0.40.13 sh
+          curl -fsS localhost:11434 || (nohup ollama serve > ollama.log 2>&1 &)
+          until curl -fsS localhost:11434; do sleep 1; done
+          for config in $configs; do
+            ollama pull "$(python -c "from projstats import config; print(config.load('$config').ollama.model)")"
+            python -m projstats tag "$config" --limit 60 || failed=1
+          done
+          exit ${failed:-0}
       # Pushes the updated databases to the private data repo.
       - name: Save the databases
         if: github.ref == 'refs/heads/main'
