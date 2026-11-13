@@ -133,12 +133,23 @@ PS.charts = (() => {
       PS.el("tbody", {}, items.map(item => PS.el("tr", {}, columns.map(c => PS.el("td", {}, c.cell(item))))))));
   }
 
-  // A fixed header SVG over a scrolling body; returns the scrolling element.
-  function scrollArea(figure, header, body) {
-    const scroll = PS.el("div", {class: "scroll"});
-    scroll.addEventListener("scroll", PS.hideTooltip, {passive: true});
-    scroll.append(body.node());
-    figure.plot.replaceChildren(header.node(), scroll);
+  // A body SVG that scrolls both ways, under a header SVG and beside a names
+  // SVG that follow it; returns the scrolling element. labelW is the names'
+  // width.
+  function scrollArea(figure, {labelW, header, names, body}) {
+    const head = PS.el("div", {class: "hm-head"}, header.node());
+    const side = PS.el("div", {class: "hm-names"}, names.node());
+    const scroll = PS.el("div", {class: "scroll"}, body.node());
+    scroll.addEventListener("scroll", () => {
+      PS.hideTooltip();
+      head.scrollLeft = scroll.scrollLeft;
+      side.scrollTop = scroll.scrollTop;
+    }, {passive: true});
+    figure.plot.replaceChildren(PS.el("div", {class: "hm-grid", style: `grid-template-columns: ${labelW}px minmax(0, 1fr)`},
+      PS.el("div"), head, side, scroll));
+    // The scrollbars take room from the cells; leave the same in the others.
+    head.style.paddingRight = `${scroll.offsetWidth - scroll.clientWidth}px`;
+    side.style.paddingBottom = `${scroll.offsetHeight - scroll.clientHeight}px`;
     return scroll;
   }
 
@@ -247,8 +258,9 @@ PS.charts = (() => {
     refocus();
   }
 
-  // A heatmap: a row per item and a cell per column, the rows scrolling under
-  // a fixed header of column labels. Up and down move between rows; left and
+  // A heatmap: a row per item and a cell per column. The cells scroll under a
+  // fixed header of column labels and beside fixed row labels; columns never
+  // get narrower than their labels. Up and down move between rows; left and
   // right move a cursor between cells; Enter, Space, or a click chooses a
   // cell. Callbacks get row index i and column index k. Options:
   //   rows, cols, rowLabel(i), rowCurrent(i): the label in bold,
@@ -258,7 +270,8 @@ PS.charts = (() => {
   //   label: the chart's accessible name, rowLabelAria(i),
   //   tooltip(i, k, anchor): k is undefined when hovering outside the columns,
   //   onPick(i, k), picked: {row, col} or null, focusRow: the default tab stop.
-  // The cursor's column (figure.col) and the scroll position survive re-renders.
+  // The cursor's column (figure.col) and the scroll position survive re-renders;
+  // a first draw, or a change in the number of columns, scrolls to the last.
   function heatmap(figure, {rows, cols, rowLabel, rowCurrent, colLabel, colNote, cell, label, rowLabelAria,
                             tooltip, onPick, picked = null, focusRow = 0}) {
     const scrolled = figure.plot.querySelector(".scroll");
@@ -269,20 +282,24 @@ PS.charts = (() => {
     const maxNameW = Math.min(220, Math.round(width * 0.4));
     const name = i => PS.fitText(rowLabel(i), 12, maxNameW);
     const x0 = 8 + Math.max(...rows.map((_, i) => PS.textWidth(name(i), 12)));
-    const cellW = Math.min(110, (width - x0) / cols.length);
+    const headW = Math.max(...cols.map((_, k) => Math.max(PS.textWidth(colLabel(k), 11), PS.textWidth(colNote(k) || "", 11))));
+    const cellW = Math.min(110, Math.max(34, headW + 8, (width - x0) / cols.length));
+    const gridW = cols.length * cellW;
     const rowH = 24, top = 34;
     const height = rows.length * rowH;
+    const sized = (node, w) => node.style("width", `${w}px`);
 
-    const header = svg(width, top, null);
+    const header = sized(svg(gridW, top, null), gridW);
     cols.forEach((_, k) => {
-      const cx = x0 + k * cellW + cellW / 2;
+      const cx = k * cellW + cellW / 2;
       header.append("text").attr("x", cx).attr("y", 14).attr("text-anchor", "middle").text(colLabel(k));
       const note = colNote(k);
       if (note) header.append("text").attr("x", cx).attr("y", 27).attr("text-anchor", "middle").text(note);
     });
-    const body = svg(width, height, label);
+    const names = sized(svg(x0, height, null), x0);
+    const body = sized(svg(gridW, height, label), gridW);
 
-    const colAt = event => Math.floor((d3.pointer(event, body.node())[0] - x0) / cellW);
+    const colAt = event => Math.floor(d3.pointer(event, body.node())[0] / cellW);
     const choose = (i, k, keyboard) => {
       if (!cell(i, k)) return;
       PS.hideTooltip();
@@ -296,11 +313,15 @@ PS.charts = (() => {
       const y = i * rowH;
       const mid = y + rowH / 2;
       const g = body.append("g");
-      g.append("text").attr("class", rowCurrent(i) ? "label current" : "label")
+      const side = names.append("g");
+      side.append("text").attr("class", rowCurrent(i) ? "label current" : "label")
         .attr("x", 0).attr("y", mid).attr("dominant-baseline", "middle").text(name(i));
+      side.append("rect").attr("class", "hit").attr("x", 0).attr("y", y).attr("width", x0).attr("height", rowH)
+        .on("pointermove", event => tooltip(i, undefined, event))
+        .on("pointerleave", PS.hideTooltip);
       cols.forEach((_, k) => {
         const c = cell(i, k);
-        const x = x0 + k * cellW;
+        const x = k * cellW;
         if (!c) return;
         g.append("rect").attr("x", x + 1).attr("y", y + 1).attr("width", cellW - 2).attr("height", rowH - 2)
           .attr("rx", 3).attr("fill", `var(--seq-${c.bin + 1})`).attr("opacity", c.faded ? 0.6 : 1);
@@ -318,7 +339,7 @@ PS.charts = (() => {
         tooltip(i, k, anchor);
       };
       targets.push(g.append("rect").attr("class", "hit")
-        .attr("x", 0).attr("y", y).attr("width", x0 + cols.length * cellW).attr("height", rowH)
+        .attr("x", 0).attr("y", y).attr("width", gridW).attr("height", rowH)
         .attr("role", "button")
         .attr("aria-label", rowLabelAria(i))
         .on("pointermove", show)
@@ -342,17 +363,23 @@ PS.charts = (() => {
 
     // Marks above the rows: the chosen cell, and the cell the arrow keys are on.
     const mark = (cls, k, i, stroke, w) => body.append("rect").attr("class", cls)
-      .attr("x", x0 + k * cellW + 1).attr("y", i * rowH + 1).attr("width", cellW - 2).attr("height", rowH - 2)
+      .attr("x", k * cellW + 1).attr("y", i * rowH + 1).attr("width", cellW - 2).attr("height", rowH - 2)
       .attr("rx", 3).attr("fill", "none").attr("stroke", stroke).attr("stroke-width", w)
       .attr("pointer-events", "none");
     if (picked) mark("picked", picked.col, picked.row, "var(--text-primary)", 1.5);
     const cursor = mark("cursor", 0, 0, "var(--series-1)", 2).attr("display", "none");
-    const place = i => cursor.attr("display", null)
-      .attr("x", x0 + figure.col * cellW + 1).attr("y", i * rowH + 1);
+    const place = i => {
+      const left = figure.col * cellW;
+      cursor.attr("display", null).attr("x", left + 1).attr("y", i * rowH + 1);
+      scroll.scrollLeft = Math.min(left, Math.max(scroll.scrollLeft, left + cellW - scroll.clientWidth));
+    };
 
     PS.rovingFocus(targets, figure.refocusRow !== undefined ? figure.refocusRow : focusRow, "ArrowUp", "ArrowDown");
-    const scroll = scrollArea(figure, header, body);
+    const scroll = scrollArea(figure, {labelW: x0, header, names, body});
     scroll.scrollTop = scrollTop;
+    scroll.scrollLeft = figure.scrollCols === cols.length ? figure.scrollLeft : scroll.scrollWidth;
+    figure.scrollCols = cols.length;
+    scroll.addEventListener("scroll", () => { figure.scrollLeft = scroll.scrollLeft; }, {passive: true});
     if (figure.refocusRow !== undefined) {
       targets[figure.refocusRow].focus();
       figure.refocusRow = undefined;

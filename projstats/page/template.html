@@ -260,8 +260,10 @@
   .plot .name.current { fill: var(--text-primary); font-weight: 600; }
   .plot .cell-ink { fill: var(--text-primary); font-size: 12px; }
   .plot .cell-ink-inverse { fill: var(--seq-ink-inverse); font-size: 12px; }
-  .plot .scroll { max-height: 480px; overflow-y: auto; }
-  .plot .label.current { fill: var(--text-primary); font-weight: 600; }
+  .plot .scroll { max-height: 480px; overflow: auto; }
+  .plot .hm-grid { display: grid; }
+  .plot .hm-head, .plot .hm-names { overflow: hidden; }
+  .plot .hm-names { max-height: 480px; }  .plot .label.current { fill: var(--text-primary); font-weight: 600; }
   .filter .note { color: var(--text-muted); }
   table.data.themes th, table.data.themes td { text-align: left; vertical-align: top; }
   /* Fixed column widths, as shares of the table; narrow screens scroll sideways. */
