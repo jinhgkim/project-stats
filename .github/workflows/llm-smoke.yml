@@ -1,0 +1,44 @@
+name: LLM smoke
+
+# Runs the opt-in tests in tests/test_ollama_smoke.py against a real model. It
+# does not block merges: a failure after a merge means the prompt, schema, or
+# model no longer agree. To check a prompt or parsing change before merging,
+# run it by hand on the branch with "Run workflow".
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch or tag to test
+        default: main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: llm-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+      - name: Start Ollama
+        run: |
+          curl -fsSL https://ollama.com/install.sh | OLLAMA_VERSION=0.40.13 sh
+          curl -fsS localhost:11434 || (nohup ollama serve > ollama.log 2>&1 &)
+          until curl -fsS localhost:11434; do sleep 1; done
+          ollama pull "$(python -c "from projstats import config; print(config.OllamaConfig().model)")"
+      - name: Smoke test
+        env:
+          PROJSTATS_OLLAMA_SMOKE: "1"
+        run: python -m unittest tests.test_ollama_smoke -v
