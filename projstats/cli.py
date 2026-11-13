@@ -19,7 +19,6 @@ from projstats import (
     identity,
     page,
     releases,
-    retention,
     storage,
     tagger,
     themes,
@@ -95,14 +94,6 @@ def _print_github(conn, stats: github.FetchStats, full: bool) -> None:
 
 def _load_people(conn, cfg: config.Config) -> identity.People:
     return identity.load_people(conn, cfg.people.bots, cfg.people.manual_links())
-
-
-def _load_activity(conn, cfg: config.Config, people, kinds=None):
-    return retention.exclude_items(
-        retention.load_activity(conn, people, kinds),
-        cfg.activity.exclude_items,
-        documents.commit_links(conn),
-    )
 
 
 def cmd_people(args) -> int:
