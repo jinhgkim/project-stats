@@ -1,9 +1,9 @@
 name: Deploy
 
 on:
-  # 1:07am Vancouver
+  # Runs start about 8 hours late, so this is 7pm PST to land around 3am.
   schedule:
-    - cron: "7 8 * * *"
+    - cron: "0 3 * * *"
   workflow_dispatch:
     inputs:
       ref:
