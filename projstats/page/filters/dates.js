@@ -28,6 +28,8 @@ PS.registerFilter({
         id: "github", name: "Since GitHub PRs",
         from: PS.dayToText(github), to: undefined,
       },
+      endText && {id: "10y", name: "Last 10 years", from: yearsBack(10), to: undefined},
+      endText && {id: "5y", name: "Last 5 years", from: yearsBack(5), to: undefined},
       endText && {id: "3y", name: "Last 3 years", from: yearsBack(3), to: undefined},
       endText && {id: "1y", name: "Last 1 year", from: yearsBack(1), to: undefined},
       endText && {id: "3m", name: "Last 3 months", from: monthsBack(3), to: undefined},
