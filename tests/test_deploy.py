@@ -149,6 +149,7 @@ class DeployTest(unittest.TestCase):
 
     def test_the_repository_list_names_configs_that_load(self):
         listing = deploy.load_list(REPO / "deploy.toml")
+        self.assertTrue(listing.projects)
         for path in listing.projects:
             config.load(path)
 

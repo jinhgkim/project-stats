@@ -111,6 +111,23 @@ class ResolveTest(ThemesTestCase):
         self.assertEqual(ids["Span APIs"], ids["Span-based APIs"])
         self.assertEqual(len(registry), 1)
 
+    def test_malformed_merge_answers_are_ignored(self):
+        registry = Registry(self.conn)
+        registry.create("OpenColorIO")
+        llm = FakeProvider(
+            lambda task, prompt: {
+                "matches": [
+                    "not a dict",
+                    {"candidate": "Nope", "same_as": "OpenColorIO"},
+                    {"candidate": "OCIO", "same_as": "Nope"},
+                    {"candidate": "OCIO", "same_as": "ocio"},
+                ]
+            }
+        )
+        ids = resolve(registry, llm, {"OCIO"}, {})
+        self.assertEqual(len(registry), 2)
+        self.assertNotEqual(ids["OCIO"], registry.lookup("OpenColorIO"))
+
     def test_merge_cycle_still_creates_one_theme(self):
         registry = Registry(self.conn)
         llm = self.llm(Alpha="Beta", Beta="Alpha")

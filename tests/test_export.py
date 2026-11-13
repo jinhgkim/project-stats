@@ -223,6 +223,14 @@ class ExportTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             export.build(self.conn, self.cfg, generated="2026-11-06")
 
+    def test_same_person_behind_two_labels_is_listed_once(self):
+        self.cfg.people = PeopleConfig(
+            leave_out_option={"maintainer": "ann", "release manager": "ANN"}
+        )
+        data = export.build(self.conn, self.cfg, generated="2026-11-06")
+        self.assertEqual(len(data["project"]["leave_out_option"]), 1)
+        self.assertEqual(data["project"]["leave_out_label"], ["maintainer"])
+
     def test_write_reports_sizes(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "out.json"
