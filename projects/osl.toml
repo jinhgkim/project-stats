@@ -26,4 +26,12 @@ regular_share = 0.90
 tag_pattern = '^(?:Release-|v)(\d+)\.(\d+)\.(\d+)(?:\.(\d+))?$'
 
 [themes]
-enabled = false
+enabled = true
+about = "OpenShadingLanguage (OSL): an advanced shading language and runtime (oslc compiler, LLVM-based shading system) for production global illumination renderers, used in VFX and animation."
+areas = "oslc compiler and type checking, OSL language spec and built-in functions, standard library stdosl.h and noise, runtime optimizer, LLVM JIT backend, shading system API and renderer services (RendererServices, OSO loading, shader parameters, texture handles), batched SIMD execution, OptiX and GPU, closures and BSDF library, testshade and testrender, osltoy, OpenImageIO integration, color spaces, platform ports, build system (CMake, dependencies, compiler and Python versions), continuous integration (GitHub Actions, release workflows, coverage), testsuite, documentation (docs, CHANGES, release notes)"
+project_names = ["OSL", "OpenShadingLanguage", "Open Shading Language"]
+max_per_doc = 3
+doc_chars = 3000
+batch_docs = 8
+batch_chars = 8000
+registry_limit = 300
