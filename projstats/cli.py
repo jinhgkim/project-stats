@@ -386,7 +386,7 @@ def main(argv=None) -> int:
     )
     a.add_argument("--yes", action="store_true", help="really clear them")
 
-    p = sub.add_parser("tag", help="tag documents with themes using the local LLM")
+    p = sub.add_parser("tag", help="tag documents with themes using an LLM")
     p.add_argument("config", help="project config, e.g. projects/oiio.toml")
     p.add_argument("--limit", type=int, help="tag at most N documents this run")
     p.add_argument("--since", help="only documents from YYYY-MM-DD (UTC) on")

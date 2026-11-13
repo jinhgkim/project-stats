@@ -30,7 +30,7 @@ github = ""   # REQUIRED: "owner/name"
 # tag_pattern = '^v?(\d+)\.(\d+)\.(\d+)$'
 
 [themes]
-# Off by default. To tag themes with a local LLM, set enabled = true and fill in
+# Off by default. To tag themes with an LLM, set enabled = true and fill in
 # about and areas; see projects/oiio.toml for a full example.
 # enabled = false
 # about = "One sentence about the project."

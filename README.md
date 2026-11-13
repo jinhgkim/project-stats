@@ -3,9 +3,7 @@
 - **Contributor trends:** how contributor activity changes over time, from a
   project's git history and its GitHub PRs, reviews, issues, and comments.
 - **Theme trends (optional):** which themes (lasting efforts or functional
-  areas) get work and discussion, tagged by a local LLM.
-
-Live pages: https://jinhgkim.github.io/project-stats/
+  areas) get work and discussion, tagged by an LLM.
 
 ## How it works
 
@@ -78,12 +76,12 @@ projstats only reads from GitHub. `GhClient` (`projstats/github.py`) refuses
 any GraphQL mutation or subscription before calling `gh`. For a hard limit,
 log `gh` in with a read-only token.
 
-## Theme tagging (optional, needs a local LLM)
+## Theme tagging (optional)
 
 Themes are optional and off by default, and `tag` stops without calling
 Ollama. To tag themes, set `enabled = true` under `[themes]` in the config,
-then run `tag` between `people` and `export`. Tagging needs
-[Ollama](https://ollama.com) running locally with the model named under
+then run `tag` after `fetch` and before `export`. Tagging needs
+[Ollama](https://ollama.com) running with the model named under
 `[ollama]` in the config. Nothing else in projstats uses it.
 
 ```
@@ -92,13 +90,13 @@ then run `tag` between `people` and `export`. Tagging needs
 └────────────────────────┬────────────────────────┘
                          ▼  projstats tag
 ┌─────────────────────────────────────────────────┐
-│ local LLM (Ollama) tags each PR, issue, and     │
+│ an LLM (Ollama) tags each PR, issue, and        │
 │ unlinked commit with 0 to 3 themes              │
 └────────────────────────┬────────────────────────┘
                          ▼
 ┌─────────────────────────────────────────────────┐
-│ trends: theme share per release cycle, new,     │
-│ rising, and fading themes                       │
+│ trends: theme share per period, new, rising,    │
+│ and fading themes                               │
 └────────────────────────┬────────────────────────┘
                          ▼  projstats export, projstats page
 ┌─────────────────────────────────────────────────┐
@@ -111,13 +109,16 @@ then run `tag` between `people` and `export`. Tagging needs
   so early names stick. New names that mean the same as an existing theme
   become aliases. Fix the rest by hand with `themes rename`, `merge`, or
   `delete`.
-- **Commits, reviews, and comments inherit their PR's themes.**
+- **Reviews and comments inherit their PR's or issue's themes**, and so do
+  commits linked to a PR.
 - **The config steers the model:** `about` and `areas` under `[themes]`
   describe the project, and `max_per_doc` caps themes per document.
 - **Reruns only tag new or changed documents.** `--force` re-tags everything,
   `--pause N` rests between model calls, and `--sample N` is a dry run that
   saves nothing.
-- **A first full run is slow:** see the timings in [FAQ.md](FAQ.md).
+- **Where it runs:** the first run for a new project is done locally, because
+  it is slow on the CI runner. The daily Deploy run tags only new documents.
+  See [FAQ.md](FAQ.md).
 
 ```
 python3 -m projstats tag    projects/oiio.toml   # tag documents with themes
