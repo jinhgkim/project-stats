@@ -1,6 +1,7 @@
 # Projects published by `python3 -m projstats deploy`, as config files relative
 # to this file. The page switcher shows them in this order.
 projects = [
+  "projects/gaffer.toml",
   "projects/materialx.toml",
   "projects/oiio.toml",
   "projects/openexr.toml",
