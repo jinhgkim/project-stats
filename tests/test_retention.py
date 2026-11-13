@@ -120,6 +120,19 @@ class PeriodCountsTest(unittest.TestCase):
         self.assertEqual(rows["2021-06"][:4], (1, 0, 1, 0))
         self.assertEqual(rows["2022-03"][:4], (1, 0, 1, 0))
 
+    def test_return_gap_is_inclusive(self):
+        def second_year(days):
+            start = ts("2020-06-01")
+            acts = [
+                Activity("A", start, "commit", "a1"),
+                Activity("A", start + days * 86_400, "commit", "a2"),
+            ]
+            row = period_counts(acts, "year", 365)[1]
+            return row.returning, row.continuing
+
+        self.assertEqual(second_year(365), (1, 0))
+        self.assertEqual(second_year(364), (0, 1))
+
     def test_only_last_period_is_partial(self):
         rows = period_counts(ACTIVITY, "year", 365)
         self.assertEqual([r.partial for r in rows], [False, False, False, True])

@@ -26,6 +26,10 @@ class FindReleasesTest(unittest.TestCase):
             [Release("1.2", "Release-1.2.0", 300), Release("1.3", "v1.3.5.0", 500)],
         )
 
+    def test_fourth_number_ranks_tags_before_their_dates(self):
+        tags = [("v1.3.5.1", 400), ("v1.3.5.0", 500)]
+        self.assertEqual(find_releases(tags, OIIO), [Release("1.3", "v1.3.5.0", 500)])
+
     def test_same_version_twice_keeps_the_earlier_tag(self):
         tags = [("v2.0.0.0", 900), ("Release-2.0.0", 800)]
         self.assertEqual(

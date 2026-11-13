@@ -142,6 +142,62 @@ class AnalyzeTest(unittest.TestCase):
             (alpha.recent_share, alpha.earlier_share, alpha.docs), (0.75, 0.5, 4)
         )
 
+    def test_theme_without_activity_is_steady_not_rising(self):
+        quiet = [
+            Document("pr", "pr#8", ts(2020, 4), "", ""),
+            Document("pr", "pr#9", ts(2021, 4), "", ""),
+        ]
+        r = analyze(
+            DOCS + quiet,
+            ACTIVITY,
+            PERIODS,
+            {**DOC_THEMES, "pr#8": {"D"}, "pr#9": {"D"}},
+            TAGGED | {"pr#8", "pr#9"},
+            {**NAMES, "D": "Delta"},
+            LINKS,
+            skip_in_progress=True,
+            min_docs=2,
+        )
+        self.assertEqual({t.name: t.label for t in r.trends}["Delta"], "steady")
+
+    def test_theme_stats_are_ordered_by_activity_then_name(self):
+        docs = [
+            Document("pr", "pr#1", ts(2020, 3), "", ""),
+            Document("pr", "pr#2", ts(2020, 6), "", ""),
+        ]
+        acts = [
+            Activity("a", ts(2020, 3), "pr", "pr#1"),
+            Activity("b", ts(2020, 4), "review", "pr#1"),
+            Activity("c", ts(2020, 5), "review", "pr#1"),
+            Activity("a", ts(2020, 6), "pr", "pr#2"),
+            Activity("a", ts(2020, 6), "commit", "cccccccccccc"),
+        ]
+
+        def order(names):
+            r = analyze(
+                docs,
+                acts,
+                PERIODS,
+                {"pr#1": {"X"}, "pr#2": {"Y"}},
+                {"pr#1", "pr#2"},
+                names,
+                {"cccccccccccc": "pr#2"},
+            )
+            return [s.name for s in r.periods[1].themes]
+
+        # X has 3 activities (1 code, 2 discussion), Y has 2 (both code).
+        self.assertEqual(order({"X": "Zulu", "Y": "Alpha"}), ["Zulu", "Alpha"])
+        acts[1:3] = []  # both now have 2
+        self.assertEqual(order({"X": "Zulu", "Y": "Alpha"}), ["Alpha", "Zulu"])
+
+    def test_period_is_covered_when_exactly_the_coverage_share_is_tagged(self):
+        docs = [
+            Document("pr", "pr#1", ts(2020, 3), "", ""),
+            Document("pr", "pr#2", ts(2020, 6), "", ""),
+        ]
+        r = analyze(docs, [], PERIODS, {"pr#1": {"X"}}, {"pr#1"}, {"X": "Xray"}, {})
+        self.assertEqual([p.covered for p in r.periods], [False, True, False, False])
+
     def test_min_docs(self):
         labels = {t.name: t.label for t in report(min_docs=5).trends}
         self.assertEqual(labels["Alpha"], "too few")  # 4 documents

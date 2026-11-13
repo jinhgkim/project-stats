@@ -26,7 +26,7 @@ from projstats import (
 from projstats.llm import CachedProvider, LLMError, OllamaProvider
 
 
-def cmd_fetch(args) -> int:
+def cmd_fetch(args, client=None) -> int:
     cfg = config.load(args.config)
     action = gitlog.sync_clone(cfg.clone_url, cfg.clone_path)
     print(f"git: {action} {cfg.clone_path}")
@@ -53,7 +53,7 @@ def cmd_fetch(args) -> int:
         return 0
 
     owner, name = cfg.repo.github.split("/")
-    fetcher = github.Fetcher(conn, github.GhClient(), owner, name)
+    fetcher = github.Fetcher(conn, client or github.GhClient(), owner, name)
     try:
         for kind in ("pr", "issue"):
             fetcher.fetch_items(kind, full=args.full)

@@ -40,6 +40,13 @@ class PageTest(unittest.TestCase):
         self.assertNotIn("</script><script>alert", text)
         self.assertIn("<title>Title &lt;b&gt;</title>", text)
 
+    def test_script_that_would_end_the_page_is_refused(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            bad = Path(tmp) / "bad.js"
+            bad.write_text('document.write("</SCRIPT>");')
+            with self.assertRaisesRegex(ValueError, "bad.js contains '</script'"):
+                page._script(bad)
+
     def test_every_script_is_inlined_in_order(self):
         text = page.render({}, "t")
         markers = re.findall(r"/\* ([\w/]+\.js) \*/", text)

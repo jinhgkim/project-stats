@@ -1,5 +1,6 @@
 import re
 import unittest
+from collections import Counter
 from datetime import UTC, datetime
 
 from projstats import storage, themes
@@ -8,6 +9,7 @@ from projstats.documents import Document, release_periods
 from projstats.llm import InvalidOutputError
 from projstats.releases import Release
 from projstats.tagger import (
+    SCHEMA,
     batches,
     build_prompt,
     is_catch_all,
@@ -188,11 +190,59 @@ class TagDocumentsTest(TaggerTestCase):
         self.assertEqual((stats.tagged, stats.unchanged), (2, 2))
         self.assertIn(("pr#3", "Span-based APIs"), self.tags())
 
+    def test_document_text_is_cut_only_past_the_limit(self):
+        self.cfg.doc_chars = 10
+        for text, expected in (("x" * 10, "x" * 10), ("x" * 11, "x" * 10 + " [...]")):
+            with self.subTest(len(text)):
+                llm = FakeTagger()
+                self.run_tagger(llm, docs=[DOCS[1]], texts=[text], force=True)
+                self.assertEqual(list(items(llm.tag_prompts()[0]).values()), [expected])
+
+    def test_failed_batches_are_reported_as_progress(self):
+        lines = []
+        self.run_tagger(FakeTagger(fail=lambda p: True), progress=lines.append)
+        why = "skipped (tag: model returned invalid JSON); rerun to retry"
+        self.assertEqual(lines, [f"pr#1..issue#2: {why}", f"pr#3..abc1234567: {why}"])
+
     def test_since_skips_older_documents(self):
         stats = self.run_tagger(FakeTagger(), since=ts(2022))
         self.assertEqual((stats.tagged, stats.unchanged), (2, 0))
         tagged = {r[0] for r in self.conn.execute("SELECT doc_ref FROM doc_tagging")}
         self.assertEqual(tagged, {"pr#3", "abc1234567"})
+
+    def test_pause_rests_after_each_batch(self):
+        rests = []
+        self.run_tagger(FakeTagger(), pause=2.5, sleep=rests.append)
+        self.assertEqual(rests, [2.5, 2.5])
+
+    def test_no_pause_by_default(self):
+        rests = []
+        self.run_tagger(FakeTagger(), sleep=rests.append)
+        self.assertEqual(rests, [])
+
+    def test_changing_the_model_tags_documents_again(self):
+        self.run_tagger(FakeTagger())
+        other = FakeTagger()
+        other.name = "another-model"
+        stats = self.run_tagger(other)
+        self.assertEqual((stats.tagged, stats.unchanged), (4, 0))
+
+    def test_requests_carry_their_json_schema(self):
+        llm = FakeTagger()
+        self.run_tagger(llm)
+        self.assertEqual(llm.schemas[0], SCHEMA)
+        llm = FakeTagger()
+        llm.handler = lambda task, prompt: {"matches": []}
+        themes.resolve(themes.Registry(self.conn), llm, {"A", "B"}, {})
+        self.assertEqual(llm.schemas, [themes.MERGE_SCHEMA])
+
+    def test_registry_limit_caps_the_themes_listed(self):
+        self.run_tagger(FakeTagger())
+        self.cfg.registry_limit = 1
+        llm = FakeTagger()
+        self.run_tagger(llm, docs=[DOCS[3]], force=True)
+        listed = llm.tag_prompts()[0].split("Items:")[0].count("\n- ")
+        self.assertEqual(listed, 1)
 
     def test_limit(self):
         stats = self.run_tagger(FakeTagger(), limit=3)
@@ -282,6 +332,19 @@ class PieceTest(unittest.TestCase):
         self.assertEqual(tags, {"pr#1": ["OpenEXR support"]})
         self.assertEqual(descriptions, {"openexr support": "EXR files"})
 
+    def test_parse_skips_new_themes_without_a_text_name(self):
+        result = {
+            "documents": [],
+            "new_themes": ["text", {"name": 5}, {"name": "Real", "description": "d"}],
+        }
+        _, descriptions = parse(result, {}, 3)
+        self.assertEqual(descriptions, {"real": "d"})
+
+    def test_parse_skips_theme_names_that_are_not_text(self):
+        result = {"documents": [{"id": "d1", "themes": [1, None, "Python wheels"]}]}
+        tags, _ = parse(result, {"d1": "pr#1"}, 3)
+        self.assertEqual(tags, {"pr#1": ["Python wheels"]})
+
     def test_is_catch_all(self):
         names = ["OpenImageIO", "OIIO"]
         for name in ["OpenImageIO", "OIIO core", "OpenImageIO Support", "oiio API"]:
@@ -289,6 +352,16 @@ class PieceTest(unittest.TestCase):
         for name in ["OIIO Python bindings", "OpenEXR support", "Build system"]:
             self.assertFalse(is_catch_all(name, names), name)
         self.assertFalse(is_catch_all("OIIO core", []))
+
+    def test_sample_gives_the_remainder_to_the_oldest_cycles(self):
+        periods = release_periods(
+            [Release("1.0", "a", ts(2020)), Release("1.1", "b", ts(2022))]
+        )
+        docs = [doc(f"a{i}", 2019, "", month=1 + i % 12) for i in range(20)]
+        docs += [doc(f"b{i}", 2021, "", month=1 + i % 12) for i in range(20)]
+        docs += [doc(f"c{i}", 2023, "", month=1 + i % 12) for i in range(20)]
+        picked = Counter(p.ref[0] for p in sample(docs, periods, 7))
+        self.assertEqual(picked, {"a": 3, "b": 2, "c": 2})
 
     def test_sample_spreads_across_release_cycles(self):
         periods = release_periods(

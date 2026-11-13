@@ -89,6 +89,63 @@ class GroupPeopleTest(unittest.TestCase):
         self.assertEqual(p.key, "zach@work.example")
         self.assertEqual(p.activity, 79)
 
+    def test_people_are_ordered_by_activity_then_key(self):
+        result = group_people(
+            ids(
+                ("Cy Dunn", "c@x.example", 5),
+                ("Bo Chan", "b@x.example", 9),
+                ("Ann Lee", "a@x.example", 9),
+            )
+        )
+        self.assertEqual(
+            [p.key for p in result.people],
+            ["a@x.example", "b@x.example", "c@x.example"],
+        )
+
+    def test_dropped_bots_are_ordered_by_activity(self):
+        result = group_people(
+            ids(
+                ("dependabot[bot]", "1+dependabot[bot]@users.noreply.github.com", 3),
+                ("renovate[bot]", "2+renovate[bot]@users.noreply.github.com", 8),
+            )
+        )
+        self.assertEqual(
+            [p.name for p in result.bots], ["renovate[bot]", "dependabot[bot]"]
+        )
+
+    def test_counts_for_one_name_add_up_across_emails(self):
+        result = group_people(
+            ids(
+                ("Ann Lee", "a@x.example", 3),
+                ("Ann Lee", "b@x.example", 3),
+                ("Annie Lee", "b@x.example", 5),
+            )
+        )
+        (p,) = result.people
+        self.assertEqual((p.name, p.activity), ("Ann Lee", 11))
+
+    def test_counts_for_one_email_add_up_across_names(self):
+        result = group_people(
+            ids(("Ann Lee", "a@x.example", 3), ("A. Lee", "a@x.example", 4))
+        )
+        (p,) = result.people
+        self.assertEqual((p.name, p.activity), ("A. Lee", 7))
+
+    def test_login_spellings_share_one_count_and_the_first_is_shown(self):
+        result = group_people([], github_logins={"Zed": 2, "zed": 3})
+        (p,) = result.people
+        self.assertEqual((p.name, p.activity), ("Zed", 5))
+
+    def test_login_only_person_is_named_after_the_busiest_login(self):
+        result = group_people(
+            [],
+            links=[("shared@x.example", "aa"), ("shared@x.example", "bb")],
+            github_logins={"aa": 1, "bb": 7},
+        )
+        (p,) = result.people
+        self.assertEqual((p.key, p.name, p.activity), ("login:bb", "bb", 8))
+        self.assertEqual(p.reasons, ["login 'aa'", "login 'bb'"])
+
     def test_display_name_prefers_a_full_name(self):
         result = group_people(
             ids(

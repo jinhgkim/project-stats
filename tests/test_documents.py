@@ -88,6 +88,27 @@ class BoilerplateTest(unittest.TestCase):
         self.assertIn("field:oiio branch/version", found)
         self.assertNotIn("field:note", found)
 
+    def found_with(self, repeats, total=100, **kw):
+        docs = [
+            doc(2020, "template line" if i < repeats else f"x{i}") for i in range(total)
+        ]
+        return "template line" in find_boilerplate(docs, **kw)
+
+    def test_overall_threshold_is_inclusive(self):
+        kw = dict(min_count=20, year_min_count=1000)
+        self.assertTrue(self.found_with(20, **kw))
+        self.assertFalse(self.found_with(19, **kw))
+
+    def test_overall_threshold_grows_with_the_corpus(self):
+        kw = dict(min_count=1, share=0.1, year_min_count=1000)
+        self.assertTrue(self.found_with(10, **kw))
+        self.assertFalse(self.found_with(9, **kw))
+
+    def test_yearly_threshold_is_inclusive_and_grows_with_the_year(self):
+        kw = dict(min_count=1000, year_min_count=1, year_share=0.1)
+        self.assertTrue(self.found_with(10, **kw))
+        self.assertFalse(self.found_with(9, **kw))
+
     def test_template_used_for_a_single_year(self):
         docs = [doc(2015, f"text {i}") for i in range(900)]
         docs += [doc(2025, "New template line") for _ in range(6)]

@@ -24,7 +24,13 @@ from tests.fakes import FakeProvider
 class StubOllama:
     """A real local HTTP server that answers /api/chat with a canned reply."""
 
-    def __init__(self, test, content: str | list[str] = "", raw: bytes | None = None):
+    def __init__(
+        self,
+        test,
+        content: str | list[str] = "",
+        raw: bytes | None = None,
+        status: int = 200,
+    ):
         """`content` may be a list: one reply per request, the last one repeating."""
         self.requests: list[dict] = []
         replies = content if isinstance(content, list) else [content]
@@ -38,7 +44,7 @@ class StubOllama:
                 )
                 text = replies[min(len(stub.requests), len(replies)) - 1]
                 reply = raw or json.dumps({"message": {"content": text}}).encode()
-                self.send_response(200)
+                self.send_response(status)
                 self.send_header("Content-Type", "application/json")
                 self.send_header("Content-Length", str(len(reply)))
                 self.end_headers()
@@ -48,7 +54,9 @@ class StubOllama:
                 pass
 
         server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-        threading.Thread(target=server.serve_forever, daemon=True).start()
+        threading.Thread(
+            target=server.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True
+        ).start()
         test.addCleanup(server.server_close)
         test.addCleanup(server.shutdown)
         self.url = f"http://127.0.0.1:{server.server_address[1]}/"
@@ -127,6 +135,20 @@ class OllamaProviderTest(unittest.TestCase):
         stub = StubOllama(self, '{"ok": 1}')
         OllamaProvider(stub.url, "m", context=32768).generate_json("t", "s", "p", {})
         self.assertEqual(stub.requests[0]["body"]["options"]["num_ctx"], 32768)
+
+    def test_http_error_reports_status_and_detail_without_retrying(self):
+        stub = StubOllama(self, raw=b"model not found", status=404)
+        with self.assertRaisesRegex(
+            LLMError, "t: Ollama returned 404: model not found"
+        ):
+            OllamaProvider(stub.url, "m").generate_json("t", "s", "p", {})
+        self.assertEqual(len(stub.requests), 1)
+
+    def test_reply_that_is_not_an_object_is_invalid_output(self):
+        stub = StubOllama(self, ["[1, 2]", '"text"'])
+        with self.assertRaisesRegex(InvalidOutputError, "expected a JSON object"):
+            OllamaProvider(stub.url, "m").generate_json("t", "s", "p", {})
+        self.assertEqual(len(stub.requests), 2)
 
     def test_unreachable_server_raises(self):
         provider = OllamaProvider(f"http://127.0.0.1:{unused_port()}", "m", timeout=5)

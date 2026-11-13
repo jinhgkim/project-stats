@@ -5,6 +5,8 @@ from datetime import UTC, datetime
 
 from projstats import storage
 from projstats.github import (
+    MIN_PAGE,
+    RATE_FLOOR,
     Fetcher,
     GhClient,
     GitHubError,
@@ -97,8 +99,10 @@ class FakeClient:
         self.remaining = remaining
         self.fail = fail  # callable(what, variables) -> bool: raise TransientError
         self.calls = []
+        self.queries = []
 
     def query(self, query, variables):
+        self.queries.append(query)
         if "node(id:" in query:
             what = ("more", variables["id"])
         elif "pullRequests(" in query:
@@ -119,7 +123,7 @@ class FakeClient:
         if what == "history":
             history = {"target": {"history": conn}}
             return {"rateLimit": rate, "repository": {"defaultBranchRef": history}}
-        return {"rateLimit": rate, "node": {"comments": conn}}
+        return {"rateLimit": rate, "node": {"comments": conn, "reviews": conn}}
 
 
 class FetcherTest(unittest.TestCase):
@@ -294,6 +298,125 @@ class FetcherTest(unittest.TestCase):
         self.assertEqual(len(client.calls), 1)
         self.assertEqual(get_state(self.conn, "github.history.head"), "c3")
 
+    def test_full_history_drops_logins_of_commits_that_are_gone(self):
+        c1 = commit("c1", ("ann@a.example", "Ann", "ann"))
+        c2 = commit("c2", ("bo@b.example", "Bo", "bo"))
+        self.fetcher(
+            FakeClient({("history", None): page([c2, c1])})
+        ).fetch_commit_logins()
+        self.fetcher(FakeClient({("history", None): page([c2])})).fetch_commit_logins(
+            full=True
+        )
+        self.assertEqual(self.rows("SELECT sha FROM commit_logins"), [("c2",)])
+
+    def test_stats_add_up_over_pages_and_keep_the_last_rate_limit(self):
+        first = item("P1", 1, "01-20", comments=[comment("C1")], reviews=[review("R1")])
+        client = FakeClient(
+            {
+                ("pr", None): page([first], "x"),
+                ("pr", "x"): page([item("P2", 2, "01-15", reviews=[])]),
+            }
+        )
+        f = self.fetcher(client)
+        f.fetch_items("pr")
+        s = f.stats
+        self.assertEqual(
+            (s.queries, s.cost, s.events, s.remaining, s.reset_at),
+            (2, 2, 2, 4000, "soon"),
+        )
+
+    def test_a_response_without_a_rate_limit_keeps_the_last_one(self):
+        class NoRate(FakeClient):
+            def query(self, query, variables):
+                data = super().query(query, variables)
+                if len(self.calls) > 1:
+                    del data["rateLimit"]
+                return data
+
+        client = NoRate(
+            {
+                ("pr", None): page([item("P1", 1, "01-20", reviews=[])], "x"),
+                ("pr", "x"): page([item("P2", 2, "01-15", reviews=[])]),
+            }
+        )
+        f = self.fetcher(client)
+        f.fetch_items("pr")
+        s = f.stats
+        self.assertEqual(
+            (s.queries, s.cost, s.remaining, s.reset_at), (2, 1, 4000, "soon")
+        )
+
+    def test_budget_floor_is_inclusive_and_the_error_says_when_it_resets(self):
+        pages = {("pr", None): page([item("P1", 1, "01-20", reviews=[])])}
+        self.fetcher(FakeClient(pages, remaining=RATE_FLOOR)).fetch_items("pr")
+        with self.assertRaisesRegex(GitHubError, r"\(49 left\); it resets at soon"):
+            self.fetcher(FakeClient(pages, remaining=RATE_FLOOR - 1)).fetch_items("pr")
+
+    def test_page_sizes(self):
+        client = FakeClient(
+            {
+                ("pr", None): page([]),
+                ("issue", None): page([]),
+                ("history", None): page([]),
+            }
+        )
+        f = self.fetcher(client)
+        f.fetch_items("pr")
+        f.fetch_items("issue")
+        f.fetch_commit_logins()
+        self.assertEqual([c[2] for c in client.calls], [50, 100, 100])
+
+    def test_fetches_reviews_past_the_first_page(self):
+        pr = item("P1", 1, "01-20", reviews=[review("R1")])
+        pr["reviews"]["pageInfo"] = {"hasNextPage": True, "endCursor": "r1"}
+        client = FakeClient(
+            {("pr", None): page([pr]), (("more", "P1"), "r1"): page([review("R2")])}
+        )
+        self.fetcher(client).fetch_items("pr")
+        self.assertEqual(
+            self.rows("SELECT id FROM events ORDER BY id"), [("R1",), ("R2",)]
+        )
+        (more,) = [q for q in client.queries if "node(id:" in q]
+        self.assertRegex(more, r"on PullRequest \{\s+reviews\(")
+        self.assertIn("state submittedAt", more)
+        self.assertEqual(client.calls[-1][2], 100)
+
+    def test_more_comments_on_an_issue_ask_for_the_issue_type(self):
+        issue = item("I1", 1, "01-20", comments=[comment("C1")], more_comments="c1")
+        client = FakeClient(
+            {
+                ("issue", None): page([issue]),
+                (("more", "I1"), "c1"): page([comment("C2")]),
+            }
+        )
+        self.fetcher(client).fetch_items("issue")
+        (more,) = [q for q in client.queries if "node(id:" in q]
+        self.assertRegex(more, r"on Issue \{\s+comments\(")
+        self.assertEqual(self.rows("SELECT COUNT(*) FROM events"), [(2,)])
+
+    def test_rerun_keeps_an_item_updated_exactly_at_the_cutoff(self):
+        set_state(self.conn, "github.pr.since", str(ts("01-21")))
+        at_cutoff = item("P1", 1, "01-20", reviews=[])
+        just_before = item("P2", 2, "01-19T23:59:59", reviews=[])
+        client = FakeClient({("pr", None): page([at_cutoff, just_before])})
+        self.fetcher(client).fetch_items("pr")
+        self.assertEqual(self.rows("SELECT number FROM items"), [(1,)])
+
+    def test_empty_history_remembers_no_head(self):
+        f = self.fetcher(FakeClient({("history", None): page([])}))
+        f.fetch_commit_logins()
+        self.assertEqual(f.stats.commits, 0)
+        self.assertIsNone(get_state(self.conn, "github.history.head"))
+
+    def test_gives_up_when_the_smallest_page_still_times_out(self):
+        client = FakeClient(
+            {("pr", None): page([item("P1", 1, "01-20", reviews=[])])},
+            fail=lambda what, v: True,
+        )
+        with self.assertRaises(TransientError):
+            self.fetcher(client).fetch_items("pr")
+        self.assertEqual(client.calls[-1][2], MIN_PAGE)
+
 
 class GhClientTest(unittest.TestCase):
     def run_with(self, *results):
@@ -317,6 +440,50 @@ class GhClientTest(unittest.TestCase):
             (0, json.dumps({"data": {"x": 2}}), ""),
         )
         self.assertEqual((data, sleeps), ({"x": 2}, [5]))
+
+    def test_sends_the_query_to_gh_graphql_on_stdin(self):
+        calls = []
+
+        def fake_run(cmd, **kw):
+            calls.append((cmd, kw))
+            return subprocess.CompletedProcess(cmd, 0, json.dumps({"data": {}}), "")
+
+        GhClient(run=fake_run).query("query { x }", {"a": 1})
+        ((cmd, kw),) = calls
+        self.assertEqual(cmd, ["gh", "api", "graphql", "--input", "-"])
+        sent = {"query": "query { x }", "variables": {"a": 1}}
+        self.assertEqual(json.loads(kw["input"]), sent)
+        self.assertTrue(kw["capture_output"] and kw["text"])
+
+    def test_backoff_doubles_and_the_last_failure_is_reported(self):
+        sleeps = []
+
+        def fake_run(cmd, **kw):
+            return subprocess.CompletedProcess(cmd, 1, "", "gh: HTTP 504")
+
+        client = GhClient(sleep=sleeps.append, run=fake_run)
+        with self.assertRaisesRegex(TransientError, "^gh: HTTP 504$"):
+            client.query("query { x }", {})
+        self.assertEqual(sleeps, [5, 10, 20])
+
+    def test_graphql_errors_are_joined_and_beat_a_zero_exit(self):
+        body = json.dumps(
+            {"errors": [{"message": "first"}, {}, {"message": "second"}], "data": {}}
+        )
+        with self.assertRaises(GitHubError) as raised:
+            self.run_with((0, body, ""))
+        self.assertEqual(str(raised.exception), "first; ; second")
+
+    def test_non_json_output_is_retried_when_the_error_is_transient(self):
+        data, sleeps = self.run_with(
+            (1, "<html>502 Bad Gateway</html>", "gh: HTTP 502"),
+            (0, json.dumps({"data": {"x": 3}}), ""),
+        )
+        self.assertEqual((data, sleeps), ({"x": 3}, [5]))
+
+    def test_non_json_output_with_a_hard_error_is_raised(self):
+        with self.assertRaisesRegex(GitHubError, "gh: not logged in"):
+            self.run_with((1, "oops", "gh: not logged in"))
 
     def test_raises_on_query_errors(self):
         body = json.dumps({"errors": [{"message": "Field 'nope' doesn't exist"}]})
