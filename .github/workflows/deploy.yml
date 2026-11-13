@@ -1,9 +1,9 @@
 name: Deploy
 
 on:
-  # 3am Vancouver
+  # 1:07am Vancouver
   schedule:
-    - cron: "0 10 * * *"
+    - cron: "7 8 * * *"
   workflow_dispatch:
     inputs:
       ref:
@@ -22,7 +22,6 @@ jobs:
   build:
     # ubuntu-latest is moving to a newer image; this one has gh installed.
     runs-on: ubuntu-24.04
-    timeout-minutes: 120
     steps:
       # main moves ahead of what is live, so the site is built from release.
       - uses: actions/checkout@v7
@@ -44,11 +43,13 @@ jobs:
           for config in $(python -c "import tomllib; print(*tomllib.load(open('deploy.toml', 'rb'))['projects'])"); do
             python -m projstats fetch "$config"
           done
-      # Tags only the documents the fetch added; earlier tags and the theme list
-      # come from the databases. The limit bounds a run, the rest waits a day. A
-      # tagging failure must not block the site, so the step may fail.
+      # Tags documents without tags, oldest first; earlier tags and the theme
+      # list come from the databases. The limit caps each project's run, the
+      # rest waits a day. The timeout and a failure keep the batches already
+      # tagged, and must not block the site.
       - name: Tag new documents
         continue-on-error: true
+        timeout-minutes: 330
         run: |
           configs=$(python -c "import tomllib; load = lambda p: tomllib.load(open(p, 'rb')); print(*[p for p in load('deploy.toml')['projects'] if load(p).get('themes', {}).get('enabled')])")
           [ -n "$configs" ] || exit 0
@@ -57,7 +58,7 @@ jobs:
           until curl -fsS localhost:11434; do sleep 1; done
           for config in $configs; do
             ollama pull "$(python -c "from projstats import config; print(config.load('$config').ollama.model)")"
-            python -m projstats tag "$config" --limit 60 || failed=1
+            python -m projstats tag "$config" --limit 500 || failed=1
           done
           exit ${failed:-0}
       # Pushes the updated databases to the private data repo.
