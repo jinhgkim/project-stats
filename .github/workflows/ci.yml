@@ -38,3 +38,23 @@ jobs:
       - run: pip install ".[browser]"
       - run: python -m playwright install --with-deps chromium
       - run: python -m unittest discover -s tests_browser -t .
+
+  # Needs the private data repo, which pull requests from forks cannot read.
+  live:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
+        with:
+          repository: jinhgkim/project-stats-data
+          token: ${{ secrets.DATA_TOKEN }}
+          path: data
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+      - run: pip install ".[browser]"
+      - run: python -m playwright install --with-deps chromium
+      - run: python -m projstats deploy
+      - run: PROJSTATS_SITE=site python -m unittest tests_browser.check_site
