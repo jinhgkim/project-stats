@@ -7,6 +7,9 @@ license = "MIT"
 license-files = ["LICENSE"]
 dependencies = []
 
+[project.optional-dependencies]
+browser = ["playwright==1.65.1"]
+
 [project.scripts]
 projstats = "projstats.cli:main"
 
