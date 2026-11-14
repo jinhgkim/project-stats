@@ -19,7 +19,24 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Tests the code that gets built, before the long fetch and tagging steps.
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || 'release' }}
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+      - run: pip install ".[browser]"
+      - run: python -m playwright install --with-deps chromium
+      - run: python -m unittest discover -s tests -t .
+      - run: python -m unittest discover -s tests_browser -t .
+
   build:
+    needs: test
     # ubuntu-latest is moving to a newer image; this one has gh installed.
     runs-on: ubuntu-24.04
     steps:
@@ -79,6 +96,12 @@ jobs:
         env:
           PROJSTATS_GA_ID: ${{ vars.PROJSTATS_GA_ID }}
         run: python -m projstats deploy
+      # A failure here stops the site from being published.
+      - name: Check the built site in a browser
+        run: |
+          pip install ".[browser]"
+          python -m playwright install --with-deps chromium
+          PROJSTATS_SITE=site python -m unittest tests_browser.check_site
       - uses: actions/upload-pages-artifact@v5
         with:
           path: site
