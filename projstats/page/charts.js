@@ -135,8 +135,15 @@ PS.charts = (() => {
 
   // A body SVG that scrolls both ways, under a header SVG and beside a names
   // SVG that follow it; returns the scrolling element. labelW is the names'
-  // width.
+  // width. Without names, the body fills the width and scrolls up and down
+  // under the header.
   function scrollArea(figure, {labelW, header, names, body}) {
+    if (!names) {
+      const scroll = PS.el("div", {class: "scroll"}, body.node());
+      scroll.addEventListener("scroll", PS.hideTooltip, {passive: true});
+      figure.plot.replaceChildren(header.node(), scroll);
+      return scroll;
+    }
     const head = PS.el("div", {class: "hm-head"}, header.node());
     const side = PS.el("div", {class: "hm-names"}, names.node());
     const scroll = PS.el("div", {class: "scroll"}, body.node());
