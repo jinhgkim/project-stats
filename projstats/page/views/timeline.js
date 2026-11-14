@@ -173,6 +173,6 @@ PS.registerView({
       show: (i, anchor) => targets[i].show(anchor),
     });
 
-    PS.charts.scrollArea(figure, header, body);
+    PS.charts.scrollArea(figure, {header, body});
   },
 });
