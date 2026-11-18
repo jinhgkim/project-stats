@@ -1,4 +1,5 @@
 import json
+import re
 import subprocess
 import unittest
 from datetime import UTC, datetime
@@ -7,12 +8,14 @@ from projstats import storage
 from projstats.github import (
     MIN_PAGE,
     RATE_FLOOR,
+    USERS_PER_QUERY,
     Fetcher,
     GhClient,
     GitHubError,
     TransientError,
 )
 from projstats.storage import get_state, set_state
+from tests.github_rows import add_event, add_item
 
 NOW = int(datetime(2026, 2, 1, tzinfo=UTC).timestamp())
 
@@ -92,30 +95,50 @@ def commit(oid, *authors):
 
 
 class FakeClient:
-    """Serves canned pages keyed by (what, cursor); records every call."""
+    """Serves canned pages keyed by (what, cursor); records every call.
 
-    def __init__(self, pages=None, remaining=4000, fail=None):
+    `users` maps login to profile name (None when unset); other logins don't
+    resolve, as with GitHub's NOT_FOUND.
+    """
+
+    def __init__(self, pages=None, remaining=4000, fail=None, users=None):
         self.pages = pages or {}
         self.remaining = remaining
         self.fail = fail  # callable(what, variables) -> bool: raise TransientError
+        self.users = users or {}
         self.calls = []
         self.queries = []
+        self.variables = []
 
-    def query(self, query, variables):
+    def query(self, query, variables, missing_ok=False):
         self.queries.append(query)
+        self.variables.append(variables)
         if "node(id:" in query:
             what = ("more", variables["id"])
         elif "pullRequests(" in query:
             what = "pr"
         elif "issues(" in query:
             what = "issue"
+        elif "user(login:" in query:
+            what = "users"
         else:
             what = "history"
-        self.calls.append((what, variables.get("after"), variables["first"]))
+        self.calls.append((what, variables.get("after"), variables.get("first")))
         if self.fail and self.fail(what, variables):
             raise TransientError("HTTP 502")
-        conn = self.pages[what, variables.get("after")]
         rate = {"cost": 1, "remaining": self.remaining, "resetAt": "soon"}
+        if what == "users":
+            logins = re.findall(r"(u\d+): user\(login: \$(l\d+)\) \{ name \}", query)
+            data = {
+                alias: {"name": self.users[variables[var]]}
+                if variables[var] in self.users
+                else None
+                for alias, var in logins
+            }
+            if None in data.values() and not missing_ok:
+                raise GitHubError("Could not resolve to a User")
+            return {"rateLimit": rate, **data}
+        conn = self.pages[what, variables.get("after")]
         if what == "pr":
             return {"rateLimit": rate, "repository": {"pullRequests": conn}}
         if what == "issue":
@@ -327,8 +350,8 @@ class FetcherTest(unittest.TestCase):
 
     def test_a_response_without_a_rate_limit_keeps_the_last_one(self):
         class NoRate(FakeClient):
-            def query(self, query, variables):
-                data = super().query(query, variables)
+            def query(self, query, variables, missing_ok=False):
+                data = super().query(query, variables, missing_ok)
                 if len(self.calls) > 1:
                     del data["rateLimit"]
                 return data
@@ -417,9 +440,82 @@ class FetcherTest(unittest.TestCase):
             self.fetcher(client).fetch_items("pr")
         self.assertEqual(client.calls[-1][2], MIN_PAGE)
 
+    def add_logins(self, *logins):
+        for i, login in enumerate(logins):
+            add_item(self.conn, f"I{login}", i, "issue", login, NOW)
+
+    def test_user_names_come_from_live_item_and_event_logins(self):
+        add_item(self.conn, "P1", 1, "pr", "ann", NOW)
+        add_item(self.conn, "P2", 2, "pr", "gone", NOW, vanished=NOW)
+        add_item(self.conn, "P3", 3, "pr", None, NOW)
+        add_event(self.conn, "E1", "P1", "comment", "bo", NOW)
+        add_event(self.conn, "E2", "P1", "review", "ann", NOW)
+        add_event(self.conn, "E3", "P1", "comment", "left", NOW, vanished=NOW)
+        add_event(self.conn, "E4", "P1", "comment", "cy[bot]", NOW)
+        client = FakeClient(users={"ann": "Ann Lee", "bo": None, "gone": "G"})
+        f = self.fetcher(client)
+        f.fetch_user_names()
+        self.assertEqual(client.variables, [{"l0": "ann", "l1": "bo", "l2": "cy[bot]"}])
+        self.assertEqual(
+            self.rows("SELECT login, name, fetched_at FROM github_users ORDER BY 1"),
+            [("ann", "Ann Lee", NOW), ("bo", None, NOW), ("cy[bot]", None, NOW)],
+        )
+        self.assertEqual((f.stats.users, f.stats.named, f.stats.queries), (3, 1, 1))
+
+    def test_rerun_asks_only_new_logins_and_full_asks_everyone_again(self):
+        self.add_logins("ann")
+        self.fetcher(FakeClient(users={"ann": "Ann Lee"})).fetch_user_names()
+        self.add_logins("bo")
+        client = FakeClient(users={"ann": "Ann Kim", "bo": "Bo Park"})
+        self.fetcher(client).fetch_user_names()
+        self.assertEqual(client.variables, [{"l0": "bo"}])
+        self.assertEqual(
+            self.rows("SELECT login, name FROM github_users ORDER BY 1"),
+            [("ann", "Ann Lee"), ("bo", "Bo Park")],
+        )
+        client = FakeClient(users={"ann": "Ann Kim", "bo": "Bo Park"})
+        Fetcher(self.conn, client, "o", "r", now=lambda: NOW + 1).fetch_user_names(
+            full=True
+        )
+        self.assertEqual(client.variables, [{"l0": "ann", "l1": "bo"}])
+        self.assertEqual(
+            self.rows("SELECT login, name, fetched_at FROM github_users ORDER BY 1"),
+            [("ann", "Ann Kim", NOW + 1), ("bo", "Bo Park", NOW + 1)],
+        )
+
+    def test_logins_are_asked_100_per_query(self):
+        self.assertEqual(USERS_PER_QUERY, 100)
+        for count, sizes in ((100, [100]), (101, [100, 1])):
+            with self.subTest(count=count):
+                self.conn = storage.connect(":memory:")
+                self.addCleanup(self.conn.close)
+                logins = [f"u{i:03}" for i in range(count)]
+                self.add_logins(*logins)
+                client = FakeClient(users={lg: lg.upper() for lg in logins})
+                self.fetcher(client).fetch_user_names()
+                self.assertEqual([len(v) for v in client.variables], sizes)
+                self.assertEqual(
+                    self.rows("SELECT COUNT(*), COUNT(name) FROM github_users"),
+                    [(count, count)],
+                )
+
+    def test_names_saved_before_a_failed_query_are_kept(self):
+        self.add_logins(*[f"u{i:03}" for i in range(101)])
+        client = FakeClient(fail=lambda what, v: what == "users" and len(v) == 1)
+        with self.assertRaises(TransientError):
+            self.fetcher(client).fetch_user_names()
+        self.assertEqual(self.rows("SELECT COUNT(*) FROM github_users"), [(100,)])
+        self.assertEqual(self.rows("SELECT MAX(login) FROM github_users"), [("u099",)])
+
+    def test_no_logins_sends_no_query(self):
+        client = FakeClient()
+        f = self.fetcher(client)
+        f.fetch_user_names()
+        self.assertEqual((client.calls, f.stats.users), ([], 0))
+
 
 class GhClientTest(unittest.TestCase):
-    def run_with(self, *results):
+    def run_with(self, *results, missing_ok=False):
         outputs = iter(results)
 
         def fake_run(cmd, **kw):
@@ -428,7 +524,7 @@ class GhClientTest(unittest.TestCase):
 
         sleeps = []
         client = GhClient(sleep=sleeps.append, run=fake_run)
-        return client.query("query { x }", {}), sleeps
+        return client.query("query { x }", {}, missing_ok=missing_ok), sleeps
 
     def test_returns_data(self):
         data, _ = self.run_with((0, json.dumps({"data": {"x": 1}}), ""))
@@ -493,6 +589,22 @@ class GhClientTest(unittest.TestCase):
     def test_gives_up_after_retries(self):
         with self.assertRaises(TransientError):
             self.run_with(*[(1, "", "HTTP 504")] * 3)
+
+    def test_missing_ok_accepts_only_not_found_errors(self):
+        # The shape gh returns for an unknown login: partial data, exit 1.
+        missing = {"type": "NOT_FOUND", "message": "Could not resolve to a User"}
+        data = {"u0": {"name": "Ann"}, "u1": None}
+        body = json.dumps({"data": data, "errors": [missing]})
+        self.assertEqual(self.run_with((1, body, ""), missing_ok=True), (data, []))
+        with self.assertRaisesRegex(GitHubError, "Could not resolve"):
+            self.run_with((1, body, ""))
+        other = {"type": "FORBIDDEN", "message": "no access"}
+        mixed = json.dumps({"data": data, "errors": [missing, other]})
+        with self.assertRaisesRegex(GitHubError, "no access"):
+            self.run_with((1, mixed, ""), missing_ok=True)
+        no_data = json.dumps({"errors": [missing]})
+        with self.assertRaisesRegex(GitHubError, "Could not resolve"):
+            self.run_with((1, no_data, ""), missing_ok=True)
 
 
 class ReadOnlyTest(unittest.TestCase):
