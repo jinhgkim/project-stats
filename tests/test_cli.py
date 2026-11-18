@@ -101,24 +101,32 @@ class GithubFetchTest(GitProjectTestCase):
         finally:
             self.out = out.getvalue()
 
-    def test_fetches_prs_issues_and_commit_logins(self):
-        self.fetch(FakeClient(self.pages([self.pr()])))
+    def test_fetches_prs_issues_commit_logins_and_names(self):
+        self.fetch(FakeClient(self.pages([self.pr()]), users={"ann": "Ann Lee"}))
         lines = self.out.splitlines()
         self.assertIn("PRs: 1 fetched; stored 1 merged", lines)
         self.assertIn("issues: 1 fetched; stored 1 open", lines)
         self.assertIn("events: 2 fetched; stored 1 reviews, 1 comments", lines)
         self.assertIn("commit logins: 1 commits fetched", lines)
-        self.assertIn("github api: 3 queries, cost 3, 4000 left (resets soon)", lines)
+        self.assertIn("user names: 1 logins looked up, 1 with a name", lines)
+        self.assertIn("github api: 4 queries, cost 4, 4000 left (resets soon)", lines)
         conn = self.connect()
         self.assertEqual(
             [tuple(r) for r in conn.execute("SELECT sha, login FROM commit_logins")],
             [(self.c1, "alice")],
+        )
+        self.assertEqual(
+            [tuple(r) for r in conn.execute("SELECT login, name FROM github_users")],
+            [("ann", "Ann Lee")],
         )
 
     def test_full_reports_what_vanished(self):
         self.fetch(FakeClient(self.pages([self.pr()])))
         self.fetch(FakeClient(self.pages()), full=True)
         self.assertIn("PRs: 0 fetched; stored none; 1 newly vanished", self.out)
+        # ann was looked up by the first fetch; only a full one asks again.
+        lines = self.out.splitlines()
+        self.assertIn("user names: 1 logins looked up, 0 with a name", lines)
 
     def test_stats_are_printed_even_when_the_budget_runs_out(self):
         with self.assertRaises(github.GitHubError):
@@ -209,6 +217,8 @@ class PrintGithubTest(CliTestCase):
             vanished={"pr": 1},
             events=3,
             commits=5,
+            users=7,
+            named=5,
             queries=4,
             cost=6,
             remaining=4990,
@@ -228,6 +238,7 @@ class PrintGithubTest(CliTestCase):
                 "PRs: 2 fetched; stored 1 merged, 1 open",
                 "events: 3 fetched; stored 1 reviews, 2 comments",
                 "commit logins: 5 commits fetched",
+                "user names: 7 logins looked up, 5 with a name",
                 "github api: 4 queries, cost 6, 4990 left (resets 2020-01-01T01:00Z)",
             ],
         )

@@ -58,6 +58,7 @@ def cmd_fetch(args, client=None) -> int:
         for kind in ("pr", "issue"):
             fetcher.fetch_items(kind, full=args.full)
         fetcher.fetch_commit_logins(full=args.full)
+        fetcher.fetch_user_names(full=args.full)
     finally:
         _print_github(conn, fetcher.stats, args.full)
     return 0
@@ -86,6 +87,7 @@ def _print_github(conn, stats: github.FetchStats, full: bool) -> None:
         f"{events.get('comment', 0)} comments"
     )
     print(f"commit logins: {stats.commits} commits fetched")
+    print(f"user names: {stats.users} logins looked up, {stats.named} with a name")
     print(
         f"github api: {stats.queries} queries, cost {stats.cost}, "
         f"{stats.remaining} left (resets {stats.reset_at})"

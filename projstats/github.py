@@ -1,4 +1,4 @@
-"""Fetch PRs, issues, reviews, comments, and commit logins from GitHub.
+"""Fetch PRs, issues, reviews, comments, commit logins, and names from GitHub.
 
 Talks to GitHub's GraphQL API through `gh api graphql`, so authentication is
 whatever `gh auth login` set up. Every page is saved as it arrives; a run that
@@ -77,6 +77,14 @@ query($owner: String!, $name: String!, $first: Int!, $after: String) {
 }
 """
 
+USERS_QUERY = """
+query(%(params)s) {
+  %(rate)s
+  %(users)s
+}
+"""
+USERS_PER_QUERY = 100  # 100 costs one rate-limit point; larger batches untested
+
 KINDS = {
     # kind: (connection, GraphQL type, fields, page size)
     "pr": ("pullRequests", "PullRequest", PR_FIELDS, 50),
@@ -121,7 +129,9 @@ class GhClient:
         self.sleep = sleep
         self.run = run  # replaced in tests
 
-    def query(self, query: str, variables: dict) -> dict:
+    def query(self, query: str, variables: dict, missing_ok: bool = False) -> dict:
+        """The response's data. `missing_ok` accepts NOT_FOUND errors, which
+        leave the missing fields null (a renamed or deleted login)."""
         refuse_writes(query)
         body = json.dumps({"query": query, "variables": variables})
         message = ""
@@ -139,6 +149,13 @@ class GhClient:
             if r.returncode == 0 and not payload.get("errors"):
                 return payload["data"]
             errors = payload.get("errors") or []
+            if (
+                missing_ok
+                and "data" in payload
+                and errors
+                and all(e.get("type") == "NOT_FOUND" for e in errors)
+            ):
+                return payload["data"]
             message = (
                 "; ".join(e.get("message", "") for e in errors) or r.stderr.strip()
             )
@@ -154,6 +171,8 @@ class FetchStats:
     vanished: dict[str, int] = field(default_factory=dict)
     events: int = 0
     commits: int = 0
+    users: int = 0  # logins whose name was looked up
+    named: int = 0  # of those, how many have a name set
     queries: int = 0
     cost: int = 0
     remaining: int | None = None
@@ -191,8 +210,8 @@ class Fetcher:
         self.now = now
         self.stats = FetchStats()
 
-    def _query(self, query: str, variables: dict) -> dict:
-        data = self.client.query(query, variables)
+    def _query(self, query: str, variables: dict, missing_ok: bool = False) -> dict:
+        data = self.client.query(query, variables, missing_ok=missing_ok)
         rate = data.get("rateLimit") or {}
         self.stats.queries += 1
         self.stats.cost += rate.get("cost", 0)
@@ -421,3 +440,43 @@ class Fetcher:
                 )
             if head:
                 set_state(self.conn, "github.history.head", head)
+
+    def fetch_user_names(self, full: bool = False) -> None:
+        """Profile names of logins that opened, reviewed, or commented on items.
+
+        Only logins without a stored row are asked, unless `full`.
+        """
+        sql = """
+            SELECT DISTINCT author_login FROM (
+                SELECT author_login FROM live_items
+                UNION ALL
+                SELECT author_login FROM live_events
+            ) WHERE author_login IS NOT NULL
+        """
+        if not full:
+            sql += " AND author_login NOT IN (SELECT login FROM github_users)"
+        logins = sorted(r[0] for r in self.conn.execute(sql))
+        for start in range(0, len(logins), USERS_PER_QUERY):
+            batch = logins[start : start + USERS_PER_QUERY]
+            query = USERS_QUERY % {
+                "rate": RATE,
+                "params": ", ".join(f"$l{i}: String!" for i in range(len(batch))),
+                "users": "\n  ".join(
+                    f"u{i}: user(login: $l{i}) {{ name }}" for i in range(len(batch))
+                ),
+            }
+            variables = {f"l{i}": login for i, login in enumerate(batch)}
+            data = self._query(query, variables, missing_ok=True)
+            rows = [
+                (login, (data.get(f"u{i}") or {}).get("name"), self.now())
+                for i, login in enumerate(batch)
+            ]
+            with self.conn:
+                self.conn.executemany(
+                    "INSERT INTO github_users (login, name, fetched_at)"
+                    " VALUES (?, ?, ?) ON CONFLICT (login) DO UPDATE SET"
+                    " name = excluded.name, fetched_at = excluded.fetched_at",
+                    rows,
+                )
+            self.stats.users += len(rows)
+            self.stats.named += sum(1 for r in rows if r[1])

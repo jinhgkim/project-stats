@@ -25,6 +25,13 @@ def add_commit(conn, sha, ts, name, email, raw_name=None, raw_email=None):
     )
 
 
+def add_github_user(conn, login, name, fetched_at=0):
+    conn.execute(
+        "INSERT INTO github_users (login, name, fetched_at) VALUES (?, ?, ?)",
+        (login, name, fetched_at),
+    )
+
+
 def add_commit_login(conn, sha, email, login):
     conn.execute(
         "INSERT INTO commit_logins (sha, email, name, login) VALUES (?, ?, '', ?)",

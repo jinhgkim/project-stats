@@ -12,7 +12,13 @@ from projstats.identity import (
     noreply_login,
     unmatched_links,
 )
-from tests.github_rows import add_commit, add_commit_login, add_event, add_item
+from tests.github_rows import (
+    add_commit,
+    add_commit_login,
+    add_event,
+    add_github_user,
+    add_item,
+)
 
 
 def ids(*rows):
@@ -137,14 +143,25 @@ class GroupPeopleTest(unittest.TestCase):
         self.assertEqual((p.name, p.activity), ("Zed", 5))
 
     def test_login_only_person_is_named_after_the_busiest_login(self):
-        result = group_people(
-            [],
-            links=[("shared@x.example", "aa"), ("shared@x.example", "bb")],
-            github_logins={"aa": 1, "bb": 7},
-        )
-        (p,) = result.people
-        self.assertEqual((p.key, p.name, p.activity), ("login:bb", "bb", 8))
-        self.assertEqual(p.reasons, ["login 'aa'", "login 'bb'"])
+        for profile, name in (
+            (None, "bb"),
+            ({"aa": "Al A", "bb": "Bo B"}, "Bo B"),
+            ({"BB": "Bo B"}, "Bo B"),
+            ({"aa": "Al A"}, "bb"),
+            ({"aa": "Al A", "bb": None}, "bb"),
+            ({"bb": ""}, "bb"),
+            ({"cc": "Cy C"}, "bb"),
+        ):
+            with self.subTest(profile=profile):
+                result = group_people(
+                    [],
+                    links=[("shared@x.example", "aa"), ("shared@x.example", "bb")],
+                    github_logins={"aa": 1, "bb": 7},
+                    profile_names=profile,
+                )
+                (p,) = result.people
+                self.assertEqual((p.key, p.name, p.activity), ("login:bb", name, 8))
+                self.assertEqual(p.reasons, ["login 'aa'", "login 'bb'"])
 
     def test_display_name_prefers_a_full_name(self):
         result = group_people(
@@ -230,10 +247,12 @@ class GithubLoginsTest(unittest.TestCase):
             ids(("Ann Lee", "ann@a.example", 1)),
             links=[("ann@a.example", "annl")],
             github_logins={"AnnL": 5},
+            profile_names={"annl": "Ann Profile"},
         )
         self.assertEqual(len(result.people), 1)
         p = result.people[0]
         self.assertEqual((p.key, p.logins, p.activity), ("ann@a.example", {"annl"}, 6))
+        self.assertEqual(p.name, "Ann Lee")  # git name, not the profile name
         self.assertIs(result.by_login["annl"], p)
 
     def test_unlinked_login_becomes_login_only_person(self):
@@ -320,6 +339,17 @@ class LoadGithubTest(unittest.TestCase):
         add_event(self.conn, "E2", "I1", "comment", "bo", 12, vanished=99)
         add_event(self.conn, "E3", "I3", "comment", "bo", 13)  # on a vanished item
         self.assertEqual(load_github_logins(self.conn), {"alicegh": 1, "bo": 1})
+
+    def test_profile_names_name_login_only_people(self):
+        add_item(self.conn, "I1", 1, "pr", "bo", 10)
+        add_item(self.conn, "I2", 2, "pr", "cy", 10)
+        add_item(self.conn, "I3", 3, "pr", "dee", 10)
+        add_github_user(self.conn, "Bo", "Bo Park")
+        add_github_user(self.conn, "cy", None)
+        self.assertEqual(
+            sorted((p.key, p.name) for p in load_people(self.conn).people),
+            [("login:bo", "Bo Park"), ("login:cy", "cy"), ("login:dee", "dee")],
+        )
 
 
 if __name__ == "__main__":

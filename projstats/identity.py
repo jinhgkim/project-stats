@@ -99,6 +99,11 @@ def load_github_logins(conn: sqlite3.Connection) -> dict[str, int]:
     return dict(rows.fetchall())
 
 
+def load_profile_names(conn: sqlite3.Connection) -> dict[str, str | None]:
+    """GitHub profile name per login; None when the profile has none set."""
+    return dict(conn.execute("SELECT login, name FROM github_users").fetchall())
+
+
 def name_key(name: str) -> str | None:
     """Comparison key for names: ignores case, spacing, and accents.
 
@@ -145,6 +150,7 @@ def group_people(
     links: Iterable[tuple[str, str]] = (),
     github_logins: Mapping[str, int] | None = None,
     manual_links: Iterable[tuple[str, str]] = (),
+    profile_names: Mapping[str, str | None] | None = None,
 ) -> People:
     """Join identities into people.
 
@@ -152,6 +158,8 @@ def group_people(
     by hand in the project config, and show up as a reason. `github_logins` maps
     logins seen on GitHub to their activity counts; logins that never join a
     commit identity become login-only people, keyed "login:<login>".
+    `profile_names` maps logins to GitHub profile names, which name login-only
+    people; people with commits keep their git name.
     """
     identities = list(identities)
     manual = {(e.lower(), login.casefold()) for e, login in manual_links}
@@ -173,6 +181,7 @@ def group_people(
     for email, login in links:
         connect(email, ("login", login))
 
+    profile = {lg.casefold(): n for lg, n in (profile_names or {}).items()}
     github: Counter = Counter()
     display: dict[str, str] = {}  # casefolded login -> login as GitHub writes it
     for login, n in (github_logins or {}).items():
@@ -226,7 +235,7 @@ def group_people(
         main = min(logins, key=lambda lg: (-github[lg], lg))
         person = Person(
             key=f"login:{main}",
-            name=display[main],
+            name=profile.get(main) or display[main],
             logins=set(logins),
             reasons=[f"login '{lg}'" for lg in sorted(logins)]
             if len(logins) > 1
@@ -277,4 +286,5 @@ def load_people(
         links=load_links(conn),
         github_logins=load_github_logins(conn),
         manual_links=manual_links,
+        profile_names=load_profile_names(conn),
     )

@@ -88,6 +88,15 @@ CREATE TABLE IF NOT EXISTS commit_logins (
     PRIMARY KEY (sha, email)
 );
 
+-- GitHub profile names, fetched per login. name is NULL when the profile has
+-- none set or the login no longer resolves; the row is kept so the login
+-- isn't asked again.
+CREATE TABLE IF NOT EXISTS github_users (
+    login      TEXT PRIMARY KEY,
+    name       TEXT,
+    fetched_at INTEGER NOT NULL
+);
+
 -- One release per major.minor version: its earliest final tag (see releases.py).
 CREATE TABLE IF NOT EXISTS releases (
     version     TEXT PRIMARY KEY,
